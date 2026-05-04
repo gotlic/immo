@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { formatDateSlash } from "@/lib/bail-utils";
 
 type Bail = {
   id: number; token: string; status: string;
@@ -48,7 +49,7 @@ export default function BauxList({ appartementId }: { appartementId: number }) {
                   {b.prenomNom ?? <span className="italic text-gray-400">Locataire en attente</span>}
                 </p>
                 <p className="text-xs text-gray-400 mt-0.5">
-                  Début&nbsp;: {b.dateDebut ?? "non défini"} &nbsp;·&nbsp;
+                  Début&nbsp;: {b.dateDebut ? formatDateSlash(b.dateDebut) : "non défini"} &nbsp;·&nbsp;
                   Créé le {new Date(b.createdAt).toLocaleDateString("fr-FR")}
                 </p>
               </div>

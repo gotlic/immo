@@ -23,19 +23,23 @@ export type CautionDocumentData = {
   signatureLocataireAt?: string | null;
 };
 
-/** Formate "2025-10-06" → "6 octobre 2025" */
+/** Formate "2025-10-06" → "06/10/2025" */
 function fmtDate(iso: string | null): string {
   if (!iso) return "___________";
   const d = new Date(iso + "T00:00:00");
-  return d.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  return `${day}/${month}/${d.getFullYear()}`;
 }
 
-/** Ajoute 10 ans à une date ISO */
+/** Ajoute N ans à une date ISO et formate en DD/MM/YYYY */
 function addYears(iso: string | null, years: number): string {
   if (!iso) return "___________";
   const d = new Date(iso + "T00:00:00");
   d.setFullYear(d.getFullYear() + years);
-  return d.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  return `${day}/${month}/${d.getFullYear()}`;
 }
 
 /** Formate un montant en € avec lettres */

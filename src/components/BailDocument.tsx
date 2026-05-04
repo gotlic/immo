@@ -3,7 +3,7 @@
 // Composant partagé — rendu du contrat de location
 // Utilisé par l'admin (page /admin/baux/[id]) et la prévisualisation locataire
 
-import { formatDateFR, formatDateSlash, addOneYear, addOneYearExact, montantEnLettres, formatNiveau } from "@/lib/bail-utils";
+import { formatDateSlash, addOneYear, addOneYearExact, montantEnLettres, formatNiveau } from "@/lib/bail-utils";
 import CautionDocument, { CautionDocumentData } from "@/components/CautionDocument";
 import PdfPages from "@/components/PdfPages";
 import NoticeInformation from "@/components/NoticeInformation";
@@ -189,8 +189,8 @@ export default function BailDocument({
   const depot = loyer;
   const niveau = formatNiveau(etage);
 
-  const dateDebutFR = dateDebut ? formatDateFR(dateDebut) : "___________";
-  const dateFinFR = dateDebut ? formatDateFR(addOneYear(dateDebut)) : "___________";
+  const dateDebutFR = dateDebut ? formatDateSlash(dateDebut) : "___________";
+  const dateFinFR = dateDebut ? formatDateSlash(addOneYear(dateDebut)) : "___________";
   const dateRevisionSlash = dateDebut ? formatDateSlash(addOneYearExact(dateDebut)) : "__/__/____";
 
   // "Fait à" : date réelle de signature du locataire ou, à défaut, aujourd'hui
@@ -235,7 +235,7 @@ export default function BailDocument({
                 <p>{prenomNom}</p>
                 {dateNaissance && (
                   <p className="text-xs text-gray-500">
-                    Né(e) le&nbsp;: {dateNaissance}
+                    Né(e) le&nbsp;: {formatDateSlash(dateNaissance)}
                     {villeNaissance && <> à {villeNaissance}</>}
                     {departementNaissance && <> ({departementNaissance})</>}
                   </p>

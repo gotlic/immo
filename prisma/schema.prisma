@@ -1,0 +1,123 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+  binaryTargets   = ["native", "rhel-openssl-1.1.x"]
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Appartement {
+  id              Int      @id @default(autoincrement())
+  titre           String
+  description     String?
+  surface         Float
+  nbPieces        Int
+  etage           Int?
+  loyer           Float
+  montantCharges  Float?
+  detailCharges   String?
+  dpeClasse       String?
+  dpePdf          String?
+  disponible      Boolean  @default(true)
+  specificites    String?
+  adresse         String?
+  ville           String?
+
+  typeChauffage            String?   // "individuel_gaz" | "individuel_electrique"
+  courExtVegetalisee       Boolean   @default(false)
+  loyerPrecedentLocataire  Float?    // BO uniquement — affiché dans le bail
+  coutEnergMensuel         Float?    // BO uniquement — affiché dans le bail
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  photos     Photo[]
+  videos     Video[]
+  baux       Bail[]
+  inventaire Inventaire?
+}
+
+
+model Inventaire {
+  id              Int         @id @default(autoincrement())
+  appartementId   Int         @unique
+  appartement     Appartement @relation(fields: [appartementId], references: [id], onDelete: Cascade)
+
+  dateEntree      String?     // "06/11/2025"
+  lignes          String      @default("[]") // JSON : [{id,objet,nbEntree,etatEntree,nbSortie,etatSortie}]
+
+  remarqueCuisine String?
+  remarqueSDB     String?
+  remarquePiece   String?
+  remarqueGeneral String?
+
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+
+model Photo {
+  id            Int         @id @default(autoincrement())
+  url           String
+  ordre         Int         @default(0)
+  appartementId Int
+  appartement   Appartement @relation(fields: [appartementId], references: [id], onDelete: Cascade)
+}
+
+model Video {
+  id            Int         @id @default(autoincrement())
+  url           String
+  type          String      @default("youtube")
+  appartementId Int
+  appartement   Appartement @relation(fields: [appartementId], references: [id], onDelete: Cascade)
+}
+
+model Bail {
+  id               Int          @id @default(autoincrement())
+  token            String       @unique
+  appartementId    Int
+  appartement      Appartement  @relation(fields: [appartementId], references: [id], onDelete: Cascade)
+
+  // Défini par l'admin
+  emailInvitation  String?      // email locataire pour envoi du lien
+  dateDebut        String?      // "2025-06-01"
+  irlTrimestre     String?      // "T1 2025"
+  irlValeur        String?      // "144.62"
+  loyerReference   String?      // loyer de référence €/m²
+  loyerReferenceMaj String?     // loyer de référence majoré €/m²
+
+  // Rempli par le locataire
+  prenomNom        String?
+  dateNaissance    String?
+  adresseLocataire String?
+  tel              String?
+  mailLocataire    String?
+
+  // Garant
+  garantCivilite      String?      // "M." | "Mme"
+  garantPrenomNom     String?
+  garantDateNaissance String?
+  garantAdresse       String?
+  garantEmail         String?      // email garant pour envoi acte de cautionnement
+  garantToken         String?      @unique   // token unique pour lien de signature caution
+  garantLieu          String?      // "Fait à" renseigné par le garant
+
+  // Signature caution (garant)
+  signatureCaution    String?
+  signatureCautionAt  String?
+  ipCaution           String?
+
+  // Signatures électroniques (base64 PNG)
+  signatureLocataire   String?
+  signatureLocataireAt String?   // ISO datetime
+  ipLocataire          String?
+
+  signatureBailleur    String?
+  signatureBailleurAt  String?
+
+  status           String       @default("pending")
+  // pending → info_submitted → caution_signed → signed_tenant → signed_both
+  createdAt        DateTime     @default(now())
+}

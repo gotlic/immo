@@ -16,6 +16,8 @@ type BailInfo = {
   loyerReferenceMaj: string | null;
   prenomNom: string | null;
   dateNaissance: string | null;
+  villeNaissance: string | null;
+  departementNaissance: string | null;
   adresseLocataire: string | null;
   tel: string | null;
   mailLocataire: string | null;
@@ -60,6 +62,8 @@ export default function TenantFormPage() {
   /* Locataire */
   const [prenomNom, setPrenomNom] = useState("");
   const [dateNaissance, setDateNaissance] = useState("");
+  const [villeNaissance, setVilleNaissance] = useState("");
+  const [departementNaissance, setDepartementNaissance] = useState("");
   const [adresseLocataire, setAdresseLocataire] = useState("");
   const [tel, setTel] = useState("");
   const [mailLocataire, setMailLocataire] = useState("");
@@ -82,9 +86,11 @@ export default function TenantFormPage() {
         if (data) {
           setBail(data);
           // Re-hydrater les champs locataire/garant depuis la BDD
-          if (data.prenomNom)           setPrenomNom(data.prenomNom);
-          if (data.dateNaissance)       setDateNaissance(data.dateNaissance);
-          if (data.adresseLocataire)    setAdresseLocataire(data.adresseLocataire);
+          if (data.prenomNom)             setPrenomNom(data.prenomNom);
+          if (data.dateNaissance)         setDateNaissance(data.dateNaissance);
+          if (data.villeNaissance)        setVilleNaissance(data.villeNaissance);
+          if (data.departementNaissance)  setDepartementNaissance(data.departementNaissance);
+          if (data.adresseLocataire)      setAdresseLocataire(data.adresseLocataire);
           if (data.tel)                 setTel(data.tel);
           if (data.mailLocataire)       setMailLocataire(data.mailLocataire);
           if (data.garantCivilite)      setGarantCivilite(data.garantCivilite);
@@ -106,7 +112,8 @@ export default function TenantFormPage() {
 
   /* ── Étape 1 : soumettre infos locataire + garant ── */
   async function handleSubmitInfo() {
-    if (!prenomNom || !dateNaissance || !adresseLocataire || !tel || !mailLocataire
+    if (!prenomNom || !dateNaissance || !villeNaissance || !departementNaissance
+      || !adresseLocataire || !tel || !mailLocataire
       || !garantPrenomNom || !garantDateNaissance || !garantAdresse || !garantEmail) {
       setError("Veuillez remplir tous les champs obligatoires."); return;
     }
@@ -120,7 +127,8 @@ export default function TenantFormPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "submit_info",
-          prenomNom, dateNaissance, adresseLocataire, tel, mailLocataire,
+          prenomNom, dateNaissance, villeNaissance, departementNaissance,
+          adresseLocataire, tel, mailLocataire,
           garantCivilite, garantPrenomNom, garantDateNaissance, garantAdresse, garantEmail,
         }),
       });
@@ -193,6 +201,7 @@ export default function TenantFormPage() {
       dateDebut: bail.dateDebut, irlTrimestre: bail.irlTrimestre, irlValeur: bail.irlValeur,
       loyerReference: bail.loyerReference, loyerReferenceMaj: bail.loyerReferenceMaj,
       prenomNom: bail.prenomNom, dateNaissance: bail.dateNaissance,
+      villeNaissance: bail.villeNaissance, departementNaissance: bail.departementNaissance,
       adresseLocataire: bail.adresseLocataire, tel: bail.tel, mailLocataire: bail.mailLocataire,
       garantCivilite: bail.garantCivilite, garantPrenomNom: bail.garantPrenomNom,
       garantDateNaissance: bail.garantDateNaissance, garantAdresse: bail.garantAdresse,
@@ -351,6 +360,16 @@ export default function TenantFormPage() {
                 <label className="label">Date de naissance *</label>
                 <input type="date" value={dateNaissance} onChange={(e) => setDateNaissance(e.target.value)} className="input" />
               </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="label">Ville de naissance *</label>
+                  <input type="text" value={villeNaissance} onChange={(e) => setVilleNaissance(e.target.value)} className="input" placeholder="Lille" />
+                </div>
+                <div>
+                  <label className="label">Département de naissance *</label>
+                  <input type="text" value={departementNaissance} onChange={(e) => setDepartementNaissance(e.target.value)} className="input" placeholder="59" maxLength={3} />
+                </div>
+              </div>
               <div>
                 <label className="label">Adresse actuelle *</label>
                 <AddressAutocomplete value={adresseLocataire} onChange={setAdresseLocataire} placeholder="12 rue des Lilas, 75001 Paris" required />
@@ -457,7 +476,7 @@ export default function TenantFormPage() {
     loyer: a.loyer, montantCharges: a.montantCharges, detailCharges: a.detailCharges,
     dateDebut: bail.dateDebut, irlTrimestre: bail.irlTrimestre, irlValeur: bail.irlValeur,
     loyerReference: bail.loyerReference, loyerReferenceMaj: bail.loyerReferenceMaj,
-    prenomNom, dateNaissance, adresseLocataire, tel, mailLocataire,
+    prenomNom, dateNaissance, villeNaissance, departementNaissance, adresseLocataire, tel, mailLocataire,
     garantCivilite, garantPrenomNom, garantDateNaissance, garantAdresse,
     typeChauffage: a.typeChauffage, courExtVegetalisee: a.courExtVegetalisee,
     loyerPrecedentLocataire: a.loyerPrecedentLocataire, coutEnergMensuel: a.coutEnergMensuel,

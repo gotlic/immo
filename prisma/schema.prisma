@@ -25,6 +25,7 @@ model Appartement {
   adresse         String?
   ville           String?
 
+  meuble                   Boolean   @default(true)   // meublé (true) ou non meublé (false)
   typeChauffage            String?   // "individuel_gaz" | "individuel_electrique"
   courExtVegetalisee       Boolean   @default(false)
   loyerPrecedentLocataire  Float?    // BO uniquement — affiché dans le bail
@@ -89,11 +90,13 @@ model Bail {
   loyerReferenceMaj String?     // loyer de référence majoré €/m²
 
   // Rempli par le locataire
-  prenomNom        String?
-  dateNaissance    String?
-  adresseLocataire String?
-  tel              String?
-  mailLocataire    String?
+  prenomNom            String?
+  dateNaissance        String?
+  villeNaissance       String?   // ville de naissance du locataire
+  departementNaissance String?   // département de naissance (ex. "59")
+  adresseLocataire     String?
+  tel                  String?
+  mailLocataire        String?
 
   // Garant
   garantCivilite      String?      // "M." | "Mme"

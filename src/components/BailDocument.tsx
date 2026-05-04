@@ -29,6 +29,8 @@ export type BailDocumentData = {
   // Locataire
   prenomNom: string | null;
   dateNaissance: string | null;
+  villeNaissance?: string | null;
+  departementNaissance?: string | null;
   adresseLocataire: string | null;
   tel: string | null;
   mailLocataire: string | null;
@@ -177,7 +179,7 @@ export default function BailDocument({
     adresse, ville, etage, surface, nbPieces, loyer,
     montantCharges, detailCharges, dateDebut, irlTrimestre, irlValeur,
     loyerReference, loyerReferenceMaj,
-    prenomNom, dateNaissance, adresseLocataire, tel, mailLocataire,
+    prenomNom, dateNaissance, villeNaissance, departementNaissance, adresseLocataire, tel, mailLocataire,
     garantCivilite, garantPrenomNom, garantAdresse,
     typeChauffage, courExtVegetalisee, loyerPrecedentLocataire, coutEnergMensuel, dpePdf,
   } = data;
@@ -231,7 +233,13 @@ export default function BailDocument({
             {tenantFilled ? (
               <>
                 <p>{prenomNom}</p>
-                {dateNaissance && <p className="text-xs text-gray-500">Né(e) le&nbsp;: {dateNaissance}</p>}
+                {dateNaissance && (
+                  <p className="text-xs text-gray-500">
+                    Né(e) le&nbsp;: {dateNaissance}
+                    {villeNaissance && <> à {villeNaissance}</>}
+                    {departementNaissance && <> ({departementNaissance})</>}
+                  </p>
+                )}
                 {adresseLocataire && <p className="text-xs text-gray-500">{adresseLocataire}</p>}
                 {tel && <p className="text-xs text-gray-500">Tél.&nbsp;: {tel}</p>}
                 {mailLocataire && <p className="text-xs text-gray-500">Email&nbsp;: {mailLocataire}</p>}

@@ -13,6 +13,7 @@ type FormData = {
   montantCharges: string; detailCharges: string;
   dpeClasse: string; disponible: boolean; specificites: string;
   adresse: string; ville: string;
+  meuble: boolean;
   typeChauffage: string;
   courExtVegetalisee: boolean;
   loyerPrecedentLocataire: string;
@@ -31,6 +32,7 @@ const EMPTY: FormData = {
   titre: "", description: "", surface: "", nbPieces: "", etage: "",
   loyer: "", montantCharges: "", detailCharges: "",
   dpeClasse: "", disponible: true, specificites: "", adresse: "", ville: "",
+  meuble: true,
   typeChauffage: "", courExtVegetalisee: false,
   loyerPrecedentLocataire: "", coutEnergMensuel: "",
 };
@@ -42,6 +44,7 @@ export default function AppartementForm({ appartementId, initial, initialPhotos 
     ...initial,
     // Les booléens ne doivent jamais être undefined (uncontrolled checkbox)
     disponible: initial?.disponible ?? true,
+    meuble: initial?.meuble ?? true,
     courExtVegetalisee: Boolean(initial?.courExtVegetalisee),
   });
   const [photos, setPhotos] = useState<Photo[]>(initialPhotos);
@@ -306,6 +309,19 @@ export default function AppartementForm({ appartementId, initial, initialPhotos 
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="label">Type de location</label>
+            <div className="flex gap-4 mt-1.5">
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input type="radio" name="meuble" checked={form.meuble === true} onChange={() => set("meuble", true)} className="accent-gray-900" />
+                Meublé
+              </label>
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input type="radio" name="meuble" checked={form.meuble === false} onChange={() => set("meuble", false)} className="accent-gray-900" />
+                Non meublé
+              </label>
+            </div>
+          </div>
           <div>
             <label className="label">Type de chauffage</label>
             <select value={form.typeChauffage} onChange={(e) => set("typeChauffage", e.target.value)} className="input">

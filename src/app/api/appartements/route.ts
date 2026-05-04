@@ -32,6 +32,7 @@ export async function POST(req: NextRequest) {
       specificites: data.specificites,
       adresse: data.adresse,
       ville: data.ville,
+      meuble: data.meuble ?? true,
       typeChauffage: data.typeChauffage || null,
       courExtVegetalisee: data.courExtVegetalisee ?? false,
       loyerPrecedentLocataire: data.loyerPrecedentLocataire ? parseFloat(data.loyerPrecedentLocataire) : null,

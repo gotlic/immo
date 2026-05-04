@@ -22,7 +22,8 @@ export async function GET(
   if (bail.status !== "info_submitted") {
     return NextResponse.json({ error: "Cet acte a déjà été signé ou n'est pas encore disponible." }, { status: 409 });
   }
-  return NextResponse.json(bail);
+  // Inclure le token du bail pour que le garant puisse consulter le bail complet
+  return NextResponse.json({ ...bail, bailToken: bail.token });
 }
 
 export async function PUT(

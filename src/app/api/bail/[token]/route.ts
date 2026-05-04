@@ -58,9 +58,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ toke
     const updated = await prisma.bail.update({
       where: { token },
       data: {
-        prenomNom:        data.prenomNom,
-        dateNaissance:    data.dateNaissance,
-        adresseLocataire: data.adresseLocataire,
+        prenomNom:            data.prenomNom,
+        dateNaissance:        data.dateNaissance,
+        villeNaissance:       data.villeNaissance,
+        departementNaissance: data.departementNaissance,
+        adresseLocataire:     data.adresseLocataire,
         tel:              data.tel,
         mailLocataire:    data.mailLocataire,
         garantCivilite:   data.garantCivilite,
@@ -77,6 +79,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ toke
     if (data.garantEmail) {
       const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
       const lienCaution = `${baseUrl}/caution/${garantToken}`;
+      const lienBail = `${baseUrl}/bail/${token}/view?from=garant`;
       try {
         await sendMail({
           to: data.garantEmail,
@@ -90,21 +93,30 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ toke
                 pour son contrat de location.
               </p>
               <p>
-                Veuillez lire attentivement l'acte de cautionnement ci-dessous et y apposer
-                votre signature électronique :
+                Vous pouvez consulter le contrat de location complet avant de signer l'acte de cautionnement :
               </p>
-              <p style="text-align: center; margin: 24px 0;">
+              <p style="text-align: center; margin: 16px 0;">
+                <a href="${lienBail}"
+                  style="background: #f3f4f6; color: #374151; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 600; border: 1px solid #d1d5db;">
+                  📄 Voir le bail complet
+                </a>
+              </p>
+              <p>
+                Puis, veuillez lire et signer l'acte de cautionnement solidaire :
+              </p>
+              <p style="text-align: center; margin: 16px 0;">
                 <a href="${lienCaution}"
                   style="background: #1a1a1a; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">
                   Lire et signer l'acte de cautionnement →
                 </a>
               </p>
               <p style="font-size: 12px; color: #666;">
-                Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :<br/>
-                <a href="${lienCaution}">${lienCaution}</a>
+                Si les boutons ne fonctionnent pas, copiez ces liens dans votre navigateur :<br/>
+                Bail : <a href="${lienBail}">${lienBail}</a><br/>
+                Acte de caution : <a href="${lienCaution}">${lienCaution}</a>
               </p>
               <p style="font-size: 11px; color: #999; margin-top: 24px;">
-                En signant cet acte, vous vous portez caution solidaire conformément à l'article 22-1
+                En signant l'acte de cautionnement, vous vous portez caution solidaire conformément à l'article 22-1
                 de la loi n° 89-462 du 6 juillet 1989.
               </p>
             </div>
@@ -139,7 +151,45 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ toke
         ipLocataire:          ip,
         status:               "signed_tenant",
       },
+      include: { appartement: { select: { titre: true, adresse: true, ville: true } } },
     });
+
+    // Notifier l'admin : garant + locataire ont tous deux signé
+    const adminEmail = process.env.ADMIN_EMAIL;
+    if (adminEmail) {
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
+      const lienAdmin = `${baseUrl}/admin`;
+      try {
+        await sendMail({
+          to: adminEmail,
+          subject: `✅ Bail signé par le locataire — ${updated.prenomNom ?? "inconnu"} — ${updated.appartement.titre}`,
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
+              <h2 style="color: #1a1a1a;">Garant et locataire ont signé</h2>
+              <p>Bonjour,</p>
+              <p>
+                <strong>${updated.prenomNom ?? "Le locataire"}</strong> vient de signer électroniquement le bail
+                pour <strong>${updated.appartement.titre}</strong>${updated.appartement.adresse ? ` (${updated.appartement.adresse}${updated.appartement.ville ? `, ${updated.appartement.ville}` : ""})` : ""}.
+              </p>
+              <ul style="line-height: 1.8;">
+                <li>✅ Acte de cautionnement signé par <strong>${updated.garantPrenomNom ?? "le garant"}</strong></li>
+                <li>✅ Bail signé par <strong>${updated.prenomNom ?? "le locataire"}</strong></li>
+              </ul>
+              <p>Il ne reste plus qu'à apposer votre signature de bailleur pour finaliser le document.</p>
+              <p style="text-align: center; margin: 24px 0;">
+                <a href="${lienAdmin}"
+                  style="background: #1a1a1a; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">
+                  Accéder à l'administration →
+                </a>
+              </p>
+            </div>
+          `,
+        });
+      } catch (err) {
+        console.error("[bail PUT sign] Email admin failed:", err);
+      }
+    }
+
     return NextResponse.json(updated);
   }
 

@@ -146,7 +146,7 @@ export default function AdminPage() {
                             href={`/admin/appartements/${appart.id}/edit`}
                             className="text-sm text-blue-600 hover:text-blue-800 font-medium"
                           >
-                            Modifier
+                            Editer
                           </Link>
                           <button
                             onClick={() => handleDelete(appart.id)}

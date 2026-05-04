@@ -47,6 +47,37 @@ const SignaturePad = forwardRef<SignaturePadHandle, Props>(function SignaturePad
     return () => observer.disconnect();
   }, [resize]);
 
+  // Attach non-passive touch listeners directly to DOM to allow preventDefault()
+  // (React synthetic events are passive by default, which prevents scroll blocking)
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (disabled) return;
+      e.preventDefault();
+      const p = getPos(e.touches[0], canvas);
+      startDraw(p.x, p.y);
+    };
+    const handleTouchMove = (e: TouchEvent) => {
+      if (disabled) return;
+      e.preventDefault();
+      const p = getPos(e.touches[0], canvas);
+      moveDraw(p.x, p.y);
+    };
+    const handleTouchEnd = () => { drawing.current = false; };
+
+    canvas.addEventListener("touchstart", handleTouchStart, { passive: false });
+    canvas.addEventListener("touchmove", handleTouchMove, { passive: false });
+    canvas.addEventListener("touchend", handleTouchEnd);
+    return () => {
+      canvas.removeEventListener("touchstart", handleTouchStart);
+      canvas.removeEventListener("touchmove", handleTouchMove);
+      canvas.removeEventListener("touchend", handleTouchEnd);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [disabled]);
+
   function getPos(e: { clientX: number; clientY: number }, canvas: HTMLCanvasElement) {
     const rect = canvas.getBoundingClientRect();
     return { x: e.clientX - rect.left, y: e.clientY - rect.top };
@@ -74,8 +105,6 @@ const SignaturePad = forwardRef<SignaturePadHandle, Props>(function SignaturePad
 
   function onMouseDown(e: React.MouseEvent) { startDraw(getPos(e.nativeEvent, canvasRef.current!).x, getPos(e.nativeEvent, canvasRef.current!).y); }
   function onMouseMove(e: React.MouseEvent) { moveDraw(getPos(e.nativeEvent, canvasRef.current!).x, getPos(e.nativeEvent, canvasRef.current!).y); }
-  function onTouchStart(e: React.TouchEvent) { e.preventDefault(); const p = getPos(e.touches[0], canvasRef.current!); startDraw(p.x, p.y); }
-  function onTouchMove(e: React.TouchEvent) { e.preventDefault(); const p = getPos(e.touches[0], canvasRef.current!); moveDraw(p.x, p.y); }
 
   function clear() {
     const canvas = canvasRef.current;
@@ -140,9 +169,6 @@ const SignaturePad = forwardRef<SignaturePadHandle, Props>(function SignaturePad
           onMouseMove={onMouseMove}
           onMouseUp={endDraw}
           onMouseLeave={endDraw}
-          onTouchStart={onTouchStart}
-          onTouchMove={onTouchMove}
-          onTouchEnd={endDraw}
         />
         {empty && !disabled && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">

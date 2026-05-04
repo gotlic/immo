@@ -84,8 +84,8 @@ function NewBailForm() {
   const [dateDebut, setDateDebut] = useState("");
   const [irlTrimestre, setIrlTrimestre] = useState("");
   const [irlValeur, setIrlValeur] = useState("");
-  const [loyerReference, setLoyerReference] = useState("18.70");
-  const [loyerReferenceMaj, setLoyerReferenceMaj] = useState("22.40");
+  const [loyerReference, setLoyerReference] = useState("19.50");
+  const [loyerReferenceMaj, setLoyerReferenceMaj] = useState("23.40");
   const [irlLoading, setIrlLoading] = useState(false);
   const [encLoading, setEncLoading] = useState(false);
   const [encAnnee, setEncAnnee] = useState<number | null>(null);
@@ -98,6 +98,14 @@ function NewBailForm() {
   useEffect(() => {
     if (status === "unauthenticated") router.push("/admin/login");
   }, [status, router]);
+
+  // Charger les dernières valeurs d'encadrement depuis localStorage
+  useEffect(() => {
+    const savedRef = localStorage.getItem("encadrement_loyerReference");
+    const savedMaj = localStorage.getItem("encadrement_loyerReferenceMaj");
+    if (savedRef) setLoyerReference(savedRef);
+    if (savedMaj) setLoyerReferenceMaj(savedMaj);
+  }, []);
 
   useEffect(() => {
     if (status === "authenticated") {
@@ -159,6 +167,9 @@ function NewBailForm() {
       });
       const bail = await res.json();
       if (!res.ok) throw new Error(bail.error ?? "Erreur serveur");
+      // Persister les valeurs d'encadrement comme nouvelles valeurs par défaut
+      localStorage.setItem("encadrement_loyerReference", loyerReference);
+      localStorage.setItem("encadrement_loyerReferenceMaj", loyerReferenceMaj);
       const url = `${window.location.origin}/bail/${bail.token}`;
       setTenantUrl(url);
     } catch (err) {
@@ -347,7 +358,7 @@ function NewBailForm() {
                   value={loyerReference}
                   onChange={(e) => setLoyerReference(e.target.value)}
                   className="input"
-                  placeholder="18.70"
+                  placeholder="19.50"
                 />
               </div>
               <div>
@@ -357,7 +368,7 @@ function NewBailForm() {
                   value={loyerReferenceMaj}
                   onChange={(e) => setLoyerReferenceMaj(e.target.value)}
                   className="input"
-                  placeholder="22.40"
+                  placeholder="23.40"
                 />
               </div>
             </div>

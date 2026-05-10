@@ -136,8 +136,12 @@ function IconTrash() {
 }
 
 /* ── Helpers ────────────────────────────────────────────────────────────── */
+function uid(): string {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+  return Date.now().toString(36) + Math.random().toString(36).slice(2);
+}
 function newLigne(): Ligne {
-  return { id: crypto.randomUUID(), objet: "", nbEntree: "1", etatEntree: "", nbSortie: "", etatSortie: "" };
+  return { id: uid(), objet: "", nbEntree: "1", etatEntree: "", nbSortie: "", etatSortie: "" };
 }
 function emptyData(): Data {
   return { dateEntree: "", lignes: [], remarqueCuisine: "", remarqueSDB: "", remarquePiece: "", remarqueGeneral: "" };

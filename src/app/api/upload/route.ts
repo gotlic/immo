@@ -12,13 +12,22 @@ export async function POST(req: NextRequest) {
   const file = formData.get("file") as File;
   if (!file) return NextResponse.json({ error: "Aucun fichier" }, { status: 400 });
 
+  const ALLOWED_TYPES = [
+    "image/jpeg", "image/jpg", "image/png",
+    "image/webp", "image/gif", "image/avif",
+    "application/pdf",
+  ];
+  if (!ALLOWED_TYPES.includes(file.type)) {
+    return NextResponse.json({ error: `Format non supporté : ${file.type}` }, { status: 400 });
+  }
+
   const bytes = await file.arrayBuffer();
   const buffer = Buffer.from(bytes);
 
   const uploadDir = join(process.cwd(), "public", "uploads");
   await mkdir(uploadDir, { recursive: true });
 
-  const ext = file.name.split(".").pop();
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "bin";
   const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
   await writeFile(join(uploadDir, filename), buffer);
 

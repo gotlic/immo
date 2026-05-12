@@ -426,7 +426,7 @@ export default function AppartementForm({ appartementId, initial, initialPhotos 
         )}
 
         <label className="flex items-center gap-2 cursor-pointer w-fit">
-          <input type="file" accept="image/*" multiple onChange={handlePhotoUpload} className="hidden" disabled={uploading} />
+          <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp,image/gif,image/avif" multiple onChange={handlePhotoUpload} className="hidden" disabled={uploading} />
           <span className="border border-gray-300 rounded-lg px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
             {uploading ? "Téléversement…" : "+ Ajouter des photos"}
           </span>

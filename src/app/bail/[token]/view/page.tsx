@@ -7,6 +7,7 @@ import { Suspense } from "react";
 
 type BailInfo = {
   status: string;
+  pasDeGarant: boolean;
   dateDebut: string | null;
   irlTrimestre: string | null;
   irlValeur: string | null;
@@ -90,6 +91,7 @@ function BailViewContent() {
     loyerPrecedentLocataire: a.loyerPrecedentLocataire, coutEnergMensuel: a.coutEnergMensuel,
     dpePdf: a.dpePdf,
     inventaire: a.inventaire,
+    pasDeGarant: bail.pasDeGarant,
     cautionData: null,
     garantLieu: null,
     signatureCaution: null,

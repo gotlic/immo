@@ -4,7 +4,7 @@
 // Modèle : copier BailMeubleDocument.tsx et adapter les clauses
 // (durée 6 ans, destination professionnelle, pas de loi ALUR, etc.)
 
-import { BailDocumentData } from "@/components/BailDocument";
+import type { BailDocumentData } from "@/lib/bail-document-types";
 
 type Props = {
   data: BailDocumentData;

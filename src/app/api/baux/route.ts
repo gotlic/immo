@@ -38,6 +38,7 @@ export async function POST(req: NextRequest) {
         irlValeur: data.irlValeur || null,
         loyerReference: data.loyerReference || null,
         loyerReferenceMaj: data.loyerReferenceMaj || null,
+        pasDeGarant: data.pasDeGarant === true,
       },
     });
 

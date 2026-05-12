@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendMail } from "@/lib/mailer";
 
+async function verifyOtpSession(sessionToken: string | undefined, bailId: number, signerRole: string) {
+  if (!sessionToken) return "Vérification OTP requise avant de signer.";
+  const otp = await prisma.signatureOtp.findUnique({ where: { sessionToken } });
+  if (!otp || otp.bailId !== bailId || otp.signerRole !== signerRole) return "Session de vérification invalide.";
+  if (!otp.verifiedAt) return "Code OTP non encore vérifié.";
+  const ageSec = (Date.now() - new Date(otp.verifiedAt).getTime()) / 1000;
+  if (ageSec > 15 * 60) return "Session de vérification expirée. Veuillez redemander un code.";
+  return null;
+}
+
 export async function GET(
   _: NextRequest,
   { params }: { params: Promise<{ garantToken: string }> }
@@ -41,6 +51,10 @@ export async function PUT(
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
     ?? req.headers.get("x-real-ip")
     ?? "inconnue";
+
+  // Vérification OTP
+  const otpError = await verifyOtpSession(data.otpSessionToken, bail.id, "garant");
+  if (otpError) return NextResponse.json({ error: otpError }, { status: 403 });
 
   const updated = await prisma.bail.update({
     where: { id: bail.id },

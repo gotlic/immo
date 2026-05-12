@@ -5,10 +5,12 @@ import { useParams } from "next/navigation";
 import SignaturePad, { SignaturePadHandle } from "@/components/SignaturePad";
 import BailDocument, { BailDocumentData } from "@/components/BailDocument";
 import AddressAutocomplete from "@/components/AddressAutocomplete";
+import OtpVerification from "@/components/OtpVerification";
 import { isValidEmail, isValidPhoneFR } from "@/lib/validators";
 
 type BailInfo = {
   status: string;
+  pasDeGarant: boolean;
   dateDebut: string | null;
   irlTrimestre: string | null;
   irlValeur: string | null;
@@ -75,9 +77,10 @@ export default function TenantFormPage() {
   const [garantAdresse, setGarantAdresse] = useState("");
   const [garantEmail, setGarantEmail] = useState("");
 
-  /* Signature */
+  /* Signature + OTP */
   const sigRef = useRef<SignaturePadHandle>(null);
   const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
+  const [otpSessionToken, setOtpSessionToken] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`/api/bail/${token}`)
@@ -100,7 +103,7 @@ export default function TenantFormPage() {
           if (data.garantEmail)         setGarantEmail(data.garantEmail);
           // Naviguer à l'étape correcte selon le statut
           if (data.status === "info_submitted") setStep("waiting_caution");
-          if (data.status === "caution_signed") setStep("preview");
+          if (data.status === "caution_signed" || (data.pasDeGarant && data.status === "caution_signed")) setStep("preview");
         }
         setLoading(false);
       });
@@ -110,16 +113,22 @@ export default function TenantFormPage() {
     if (step === "preview") window.scrollTo({ top: 0, behavior: "smooth" });
   }, [step]);
 
-  /* ── Étape 1 : soumettre infos locataire + garant ── */
+  /* ── Étape 1 : soumettre infos locataire + (garant si requis) ── */
   async function handleSubmitInfo() {
+    const hasPasDeGarant = bail?.pasDeGarant ?? false;
+
     if (!prenomNom || !dateNaissance || !villeNaissance || !departementNaissance
-      || !adresseLocataire || !tel || !mailLocataire
-      || !garantPrenomNom || !garantDateNaissance || !garantAdresse || !garantEmail) {
+      || !adresseLocataire || !tel || !mailLocataire) {
       setError("Veuillez remplir tous les champs obligatoires."); return;
     }
     if (!isValidEmail(mailLocataire)) { setError("Email locataire invalide."); return; }
     if (!isValidPhoneFR(tel)) { setError("Numéro de téléphone invalide."); return; }
-    if (!isValidEmail(garantEmail)) { setError("Email du garant invalide."); return; }
+    if (!hasPasDeGarant) {
+      if (!garantPrenomNom || !garantDateNaissance || !garantAdresse || !garantEmail) {
+        setError("Veuillez remplir tous les champs du garant."); return;
+      }
+      if (!isValidEmail(garantEmail)) { setError("Email du garant invalide."); return; }
+    }
     setSaving(true); setError("");
     try {
       const res = await fetch(`/api/bail/${token}`, {
@@ -129,7 +138,7 @@ export default function TenantFormPage() {
           action: "submit_info",
           prenomNom, dateNaissance, villeNaissance, departementNaissance,
           adresseLocataire, tel, mailLocataire,
-          garantCivilite, garantPrenomNom, garantDateNaissance, garantAdresse, garantEmail,
+          ...(hasPasDeGarant ? {} : { garantCivilite, garantPrenomNom, garantDateNaissance, garantAdresse, garantEmail }),
         }),
       });
       if (!res.ok) {
@@ -139,7 +148,12 @@ export default function TenantFormPage() {
       // Rafraîchir les infos du bail
       const updated = await fetch(`/api/bail/${token}`).then((r) => r.json());
       setBail(updated);
-      setStep("popup_caution");
+      // Si pas de garant → aller directement à la prévisualisation
+      if (hasPasDeGarant) {
+        setStep("preview");
+      } else {
+        setStep("popup_caution");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur inattendue");
     } finally {
@@ -150,12 +164,13 @@ export default function TenantFormPage() {
   /* ── Étape 3 : signer le bail ── */
   async function handleSignBail() {
     if (!signatureDataUrl) { setError("Veuillez apposer votre signature avant de valider."); return; }
+    if (!otpSessionToken) { setError("Veuillez d'abord vérifier votre identité par email."); return; }
     setSaving(true); setError("");
     try {
       const res = await fetch(`/api/bail/${token}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "sign", signature: signatureDataUrl }),
+        body: JSON.stringify({ action: "sign", signature: signatureDataUrl, otpSessionToken }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -209,6 +224,7 @@ export default function TenantFormPage() {
       loyerPrecedentLocataire: a.loyerPrecedentLocataire, coutEnergMensuel: a.coutEnergMensuel,
       dpePdf: a.dpePdf,
       inventaire: a.inventaire,
+      pasDeGarant: bail.pasDeGarant,
       cautionData,
       garantLieu: bail.garantLieu,
       signatureCaution: bail.signatureCaution,
@@ -344,9 +360,13 @@ export default function TenantFormPage() {
 
         <main className="max-w-2xl mx-auto px-4 py-8">
           <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6 text-sm text-blue-800">
-            Renseignez vos informations et celles de votre garant. L'acte de cautionnement lui sera
-            envoyé par email pour signature, puis vous pourrez{" "}
-            <strong>lire et signer le bail</strong>.
+            {bail.pasDeGarant ? (
+              <>Renseignez vos informations. Vous pourrez ensuite <strong>lire et signer le bail</strong>.</>
+            ) : (
+              <>Renseignez vos informations et celles de votre garant. L&apos;acte de cautionnement lui sera
+              envoyé par email pour signature, puis vous pourrez{" "}
+              <strong>lire et signer le bail</strong>.</>
+            )}
           </div>
 
           <div className="space-y-6">
@@ -401,8 +421,8 @@ export default function TenantFormPage() {
               </div>
             </section>
 
-            {/* Garant */}
-            <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+            {/* Garant — masqué si pas de garant */}
+            {!bail.pasDeGarant && <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
               <div>
                 <h2 className="font-semibold text-gray-900">Votre garant</h2>
                 <p className="text-xs text-gray-400 mt-0.5">La personne qui se porte caution solidaire pour votre bail.</p>
@@ -440,14 +460,14 @@ export default function TenantFormPage() {
                 {garantEmail && isValidEmail(garantEmail) && <p className="text-xs text-green-600 mt-1">✅ Format valide</p>}
                 <p className="text-xs text-gray-400 mt-1">L'acte de cautionnement lui sera envoyé à cette adresse pour signature électronique.</p>
               </div>
-            </section>
+            </section>}
 
             <button
               onClick={handleSubmitInfo}
               disabled={saving}
               className="w-full bg-gray-900 text-white py-3.5 rounded-xl font-semibold text-base hover:bg-gray-700 transition-colors disabled:opacity-40"
             >
-              {saving ? "Envoi en cours…" : "Envoyer l'acte de caution à mon garant →"}
+              {saving ? "Envoi en cours…" : bail.pasDeGarant ? "Continuer vers la lecture du bail →" : "Envoyer l'acte de caution à mon garant →"}
             </button>
             {error && <p className="text-sm text-red-600 text-center">{error}</p>}
           </div>
@@ -483,6 +503,7 @@ export default function TenantFormPage() {
     loyerPrecedentLocataire: a.loyerPrecedentLocataire, coutEnergMensuel: a.coutEnergMensuel,
     dpePdf: a.dpePdf,
     inventaire: a.inventaire,
+    pasDeGarant: bail.pasDeGarant,
     cautionData,
     garantLieu: bail.garantLieu,
     signatureCaution: bail.signatureCaution,
@@ -494,6 +515,16 @@ export default function TenantFormPage() {
       <p className="text-xs text-gray-400">Signez ici avec votre doigt ou la souris</p>
     </div>
   );
+
+  // Bannière caution pour version sans garant
+  const noCautionBanner = bail.pasDeGarant ? (
+    <div className="print:hidden max-w-4xl mx-auto px-4 pt-6">
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800">
+        <strong>ℹ️ Bail sans garant.</strong>{" "}
+        Lisez attentivement le contrat de location ci-dessous, puis apposez votre signature électronique.
+      </div>
+    </div>
+  ) : null;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -509,13 +540,15 @@ export default function TenantFormPage() {
         </div>
       </div>
 
-      {/* Bannière caution signée */}
-      <div className="print:hidden max-w-4xl mx-auto px-4 pt-6">
-        <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-800">
-          <strong>✅ {bail.garantPrenomNom ?? "Votre garant"} a signé l'acte de cautionnement.</strong>{" "}
-          Vous pouvez maintenant lire le contrat de location et apposer votre signature électronique.
+      {/* Bannière caution signée / pas de garant */}
+      {bail.pasDeGarant ? noCautionBanner : (
+        <div className="print:hidden max-w-4xl mx-auto px-4 pt-6">
+          <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-800">
+            <strong>✅ {bail.garantPrenomNom ?? "Votre garant"} a signé l'acte de cautionnement.</strong>{" "}
+            Vous pouvez maintenant lire le contrat de location et apposer votre signature électronique.
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Document */}
       <div className="max-w-4xl mx-auto px-4 sm:px-8 py-8 print:p-0">
@@ -532,16 +565,28 @@ export default function TenantFormPage() {
         />
       </div>
 
-      {/* Bouton de validation */}
+      {/* Bouton de validation + OTP */}
       <div className="print:hidden sticky bottom-0 bg-white border-t border-gray-200 shadow-lg">
         <div className="max-w-4xl mx-auto px-4 py-4 space-y-3">
+          {/* OTP — affiché une fois la signature apposée */}
+          {signatureDataUrl && !otpSessionToken && (
+            <OtpVerification
+              documentType="bail"
+              token={token}
+              signerRole="locataire"
+              onVerified={(st) => setOtpSessionToken(st)}
+            />
+          )}
           {error && <p className="text-sm text-red-600">{error}</p>}
           <button
             onClick={handleSignBail}
-            disabled={saving || !signatureDataUrl}
+            disabled={saving || !signatureDataUrl || !otpSessionToken}
             className="w-full bg-gray-900 text-white py-3 rounded-xl font-semibold text-base hover:bg-gray-700 transition-colors disabled:opacity-40"
           >
-            {saving ? "Signature en cours…" : !signatureDataUrl ? "✍️ Signez dans le document ci-dessus" : "✅ Valider ma signature et signer le bail"}
+            {saving ? "Signature en cours…"
+              : !signatureDataUrl ? "✍️ Signez dans le document ci-dessus"
+              : !otpSessionToken ? "🔐 Vérifiez votre identité ci-dessus"
+              : "✅ Valider ma signature et signer le bail"}
           </button>
           <p className="text-xs text-center text-gray-400">
             Signature électronique simple — règlement eIDAS n° 910/2014 — valide pour les contrats de location (loi ALUR 2014)

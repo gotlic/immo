@@ -3,6 +3,17 @@ import { prisma } from "@/lib/prisma";
 import { sendMail } from "@/lib/mailer";
 import { randomUUID } from "crypto";
 
+/** Vérifie qu'un sessionToken OTP est valide pour un bail donné, côté serveur */
+async function verifyOtpSession(sessionToken: string | undefined, bailId: number, signerRole: string) {
+  if (!sessionToken) return "Vérification OTP requise avant de signer.";
+  const otp = await prisma.signatureOtp.findUnique({ where: { sessionToken } });
+  if (!otp || otp.bailId !== bailId || otp.signerRole !== signerRole) return "Session de vérification invalide.";
+  if (!otp.verifiedAt) return "Code OTP non encore vérifié.";
+  const ageSec = (Date.now() - new Date(otp.verifiedAt).getTime()) / 1000;
+  if (ageSec > 15 * 60) return "Session de vérification expirée. Veuillez redemander un code.";
+  return null; // OK
+}
+
 export async function GET(_: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   const bail = await prisma.bail.findUnique({
@@ -53,6 +64,27 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ toke
       return NextResponse.json({ error: "Ce formulaire a déjà été soumis." }, { status: 409 });
     }
 
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
+
+    if (bail.pasDeGarant) {
+      // Pas de garant : on passe directement à l'étape de signature
+      const updated = await prisma.bail.update({
+        where: { token },
+        data: {
+          prenomNom:            data.prenomNom,
+          dateNaissance:        data.dateNaissance,
+          villeNaissance:       data.villeNaissance,
+          departementNaissance: data.departementNaissance,
+          adresseLocataire:     data.adresseLocataire,
+          tel:                  data.tel,
+          mailLocataire:        data.mailLocataire,
+          status:               "caution_signed", // prêt pour signature directe
+        },
+      });
+      return NextResponse.json({ ...updated, garantTokenSent: false });
+    }
+
+    // Avec garant
     const garantToken = randomUUID();
 
     const updated = await prisma.bail.update({
@@ -77,7 +109,6 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ toke
 
     // Envoi email garant
     if (data.garantEmail) {
-      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
       const lienCaution = `${baseUrl}/caution/${garantToken}`;
       const lienBail = `${baseUrl}/bail/${token}/view?from=garant`;
       try {
@@ -143,6 +174,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ toke
       return NextResponse.json({ error: "Signature manquante." }, { status: 400 });
     }
 
+    // Vérification OTP
+    const otpError = await verifyOtpSession(data.otpSessionToken, bail.id, "locataire");
+    if (otpError) return NextResponse.json({ error: otpError }, { status: 403 });
+
     const updated = await prisma.bail.update({
       where: { token },
       data: {
@@ -158,7 +193,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ toke
     const adminEmail = process.env.ADMIN_EMAIL;
     if (adminEmail) {
       const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
-      const lienAdmin = `${baseUrl}/admin`;
+      const lienSignature = `${baseUrl}/admin/baux/${updated.id}#signature-bailleur`;
       try {
         await sendMail({
           to: adminEmail,
@@ -172,15 +207,18 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ toke
                 pour <strong>${updated.appartement.titre}</strong>${updated.appartement.adresse ? ` (${updated.appartement.adresse}${updated.appartement.ville ? `, ${updated.appartement.ville}` : ""})` : ""}.
               </p>
               <ul style="line-height: 1.8;">
-                <li>✅ Acte de cautionnement signé par <strong>${updated.garantPrenomNom ?? "le garant"}</strong></li>
+                ${updated.garantPrenomNom ? `<li>✅ Acte de cautionnement signé par <strong>${updated.garantPrenomNom}</strong></li>` : ""}
                 <li>✅ Bail signé par <strong>${updated.prenomNom ?? "le locataire"}</strong></li>
               </ul>
               <p>Il ne reste plus qu'à apposer votre signature de bailleur pour finaliser le document.</p>
               <p style="text-align: center; margin: 24px 0;">
-                <a href="${lienAdmin}"
+                <a href="${lienSignature}"
                   style="background: #1a1a1a; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">
-                  Accéder à l'administration →
+                  ✍️ Signer le bail en tant que bailleur →
                 </a>
+              </p>
+              <p style="font-size: 12px; color: #666; text-align: center;">
+                Si le bouton ne fonctionne pas : <a href="${lienSignature}">${lienSignature}</a>
               </p>
             </div>
           `,

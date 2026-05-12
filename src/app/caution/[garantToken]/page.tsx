@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import SignaturePad, { SignaturePadHandle } from "@/components/SignaturePad";
 import CautionDocument, { CautionDocumentData } from "@/components/CautionDocument";
+import OtpVerification from "@/components/OtpVerification";
 
 type BailInfo = {
   status: string;
@@ -39,6 +40,7 @@ export default function CautionPage() {
   const sigRef = useRef<SignaturePadHandle>(null);
   const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
   const [faitA, setFaitA] = useState("");
+  const [otpSessionToken, setOtpSessionToken] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`/api/caution/${garantToken}`)
@@ -62,13 +64,17 @@ export default function CautionPage() {
       setError("Veuillez apposer votre signature avant de valider.");
       return;
     }
+    if (!otpSessionToken) {
+      setError("Veuillez vérifier votre identité par email avant de valider.");
+      return;
+    }
     setSaving(true);
     setError("");
     try {
       const res = await fetch(`/api/caution/${garantToken}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ signature: signatureDataUrl, faitA }),
+        body: JSON.stringify({ signature: signatureDataUrl, faitA, otpSessionToken }),
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
@@ -145,7 +151,7 @@ export default function CautionPage() {
     </div>
   );
 
-  const canValidate = faitA.trim() && signatureDataUrl;
+  const canValidate = faitA.trim() && signatureDataUrl && otpSessionToken;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -196,9 +202,18 @@ export default function CautionPage() {
         </div>
       </div>
 
-      {/* Bouton validation */}
+      {/* Bouton validation + OTP */}
       <div className="print:hidden sticky bottom-0 bg-white border-t border-gray-200 shadow-lg">
-        <div className="max-w-4xl mx-auto px-4 py-4 space-y-2">
+        <div className="max-w-4xl mx-auto px-4 py-4 space-y-3">
+          {/* OTP — affiché une fois signature + "Fait à" remplis */}
+          {faitA.trim() && signatureDataUrl && !otpSessionToken && (
+            <OtpVerification
+              documentType="caution"
+              token={garantToken}
+              signerRole="garant"
+              onVerified={(st) => setOtpSessionToken(st)}
+            />
+          )}
           {error && <p className="text-sm text-red-600">{error}</p>}
           <button
             onClick={handleSign}
@@ -211,6 +226,8 @@ export default function CautionPage() {
               ? "Renseignez la ville (\"Fait à\") dans le document ci-dessus"
               : !signatureDataUrl
               ? "✍️ Signez l'acte dans le document ci-dessus"
+              : !otpSessionToken
+              ? "🔐 Vérifiez votre identité ci-dessus"
               : "✅ Valider ma signature et envoyer l'acte"}
           </button>
           <p className="text-xs text-center text-gray-400">

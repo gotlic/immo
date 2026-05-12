@@ -90,6 +90,7 @@ function NewBailForm() {
   const [encLoading, setEncLoading] = useState(false);
   const [encAnnee, setEncAnnee] = useState<number | null>(null);
   const [encFetchedAt, setEncFetchedAt] = useState<string | null>(null);
+  const [pasDeGarant, setPasDeGarant] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [tenantUrl, setTenantUrl] = useState<string | null>(null);
@@ -163,7 +164,7 @@ function NewBailForm() {
       const res = await fetch("/api/baux", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ appartementId, emailInvitation, dateDebut, irlTrimestre, irlValeur, loyerReference, loyerReferenceMaj }),
+        body: JSON.stringify({ appartementId, emailInvitation, dateDebut, irlTrimestre, irlValeur, loyerReference, loyerReferenceMaj, pasDeGarant }),
       });
       const bail = await res.json();
       if (!res.ok) throw new Error(bail.error ?? "Erreur serveur");
@@ -297,13 +298,30 @@ function NewBailForm() {
             </div>
           </section>
 
-          {/* Date de début */}
+          {/* Date de début + options */}
           <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
             <h2 className="font-semibold text-gray-900">Date de prise d&apos;effet</h2>
             <div>
               <label className="label">Date de début du bail *</label>
               <input type="date" value={dateDebut} onChange={(e) => setDateDebut(e.target.value)} required className="input" />
             </div>
+            {/* Pas de garant */}
+            <label className="flex items-start gap-3 cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={pasDeGarant}
+                onChange={(e) => setPasDeGarant(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-500 cursor-pointer"
+              />
+              <div>
+                <p className="text-sm font-medium text-gray-800 group-hover:text-gray-900">
+                  Pas de garant
+                </p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Cochez si le locataire n'a pas de garant. L'acte de cautionnement (Annexe 4) sera supprimé du bail.
+                </p>
+              </div>
+            </label>
           </section>
 
           {/* IRL */}

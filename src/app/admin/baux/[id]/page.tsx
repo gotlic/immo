@@ -25,6 +25,7 @@ type Appartement = {
 
 type Bail = {
   id: number; token: string; status: string;
+  pasDeGarant: boolean;
   dateDebut: string | null; irlTrimestre: string | null; irlValeur: string | null;
   loyerReference: string | null; loyerReferenceMaj: string | null;
   prenomNom: string | null; dateNaissance: string | null;
@@ -136,6 +137,7 @@ export default function BailPage() {
     loyerPrecedentLocataire: a.loyerPrecedentLocataire, coutEnergMensuel: a.coutEnergMensuel,
     dpePdf: a.dpePdf,
     inventaire: a.inventaire,
+    pasDeGarant: bail.pasDeGarant,
     cautionData,
     garantLieu: bail.garantLieu,
     signatureCaution: bail.signatureCaution,
@@ -143,7 +145,7 @@ export default function BailPage() {
 
   // Slot signature bailleur : pad si pas encore signé
   const bailleurSlot = (
-    <div className="print:hidden space-y-2">
+    <div id="signature-bailleur" className="print:hidden space-y-2">
       <SignaturePad ref={sigRef} />
       {sigError && <p className="text-xs text-red-500">{sigError}</p>}
       <button

@@ -4,70 +4,34 @@
 // Modèle de référence pour les autres types de bail.
 
 import { formatDateSlash, addOneYear, addOneYearExact, montantEnLettres, formatNiveau } from "@/lib/bail-utils";
-import CautionDocument, { CautionDocumentData } from "@/components/CautionDocument";
+import CautionDocument from "@/components/CautionDocument";
 import PdfPages from "@/components/PdfPages";
 import NoticeInformation from "@/components/NoticeInformation";
+import type { BailDocumentData } from "@/lib/bail-document-types";
 
-export type BailDocumentData = {
-  // Appartement
-  adresse: string | null;
-  ville: string | null;
-  etage: number | null;
-  surface: number;
-  nbPieces: number;
-  loyer: number;
-  montantCharges: number | null;
-  detailCharges: string | null;
+export type { BailDocumentData };
 
-  // Métadonnées bail
-  dateDebut: string | null;
-  irlTrimestre: string | null;
-  irlValeur: string | null;
-  loyerReference: string | null;
-  loyerReferenceMaj: string | null;
+// ─── Placeholder de champ en mode template ────────────────────────────────────
+function F({ label }: { label: string }) {
+  return (
+    <span
+      className="tpl-field"
+      style={{ color: "#c2410c", background: "#fff7ed", padding: "0 3px", borderRadius: "3px", fontWeight: 500, fontStyle: "normal" }}
+    >
+      &lt;&lt;{label}&gt;&gt;
+    </span>
+  );
+}
 
-  // Locataire
-  prenomNom: string | null;
-  dateNaissance: string | null;
-  villeNaissance?: string | null;
-  departementNaissance?: string | null;
-  adresseLocataire: string | null;
-  tel: string | null;
-  mailLocataire: string | null;
+// ─── Raccourci : valeur normale OU placeholder ────────────────────────────────
+function fv(tpl: boolean, value: React.ReactNode, label: string): React.ReactNode {
+  return tpl ? <F label={label} /> : value;
+}
 
-  // Garant
-  garantCivilite: string | null;
-  garantPrenomNom: string | null;
-  garantDateNaissance: string | null;
-  garantAdresse: string | null;
-
-  // Appartement extras
-  typeChauffage: string | null;
-  courExtVegetalisee: boolean;
-  loyerPrecedentLocataire: number | null;
-  coutEnergMensuel: number | null;
-
-  // DPE
-  dpePdf: string | null;
-
-  // Annexes physiques (optionnel)
-  inventaire?: {
-    dateEntree: string | null;
-    lignes: string; // JSON
-    remarqueCuisine?: string | null;
-    remarqueSDB?: string | null;
-    remarquePiece?: string | null;
-    remarqueGeneral?: string | null;
-  } | null;
-  cautionData?: CautionDocumentData | null;
-  garantLieu?: string | null;
-  signatureCaution?: string | null;
-  signatureCautionAt?: string | null;
-};
-
+// ─── SignatureSlot ─────────────────────────────────────────────────────────────
 type SignatureSlotProps = {
   label: string;
-  name: string;
+  name: string | React.ReactNode;
   signatureDataUrl?: string | null;
   signedAt?: string | null;
   extra?: string | null;
@@ -104,6 +68,7 @@ function SignatureSlot({ label, name, signatureDataUrl, signedAt, extra, placeho
   );
 }
 
+// ─── Inventaire (Annexe 3) ────────────────────────────────────────────────────
 type InventaireRow = {
   id: string; objet: string;
   nbEntree: number | string; etatEntree: string;
@@ -153,9 +118,11 @@ function InventaireAnnexe({ inventaire }: { inventaire: NonNullable<BailDocument
   );
 }
 
+// ─── Props ────────────────────────────────────────────────────────────────────
 type Props = {
   data: BailDocumentData;
-  /** Slot de signature pour le bailleur (pass null pour espace vide, undefined pour placeholder tirets) */
+  /** Mode template : remplace les valeurs par <<CHAMP>> en orange */
+  templateMode?: boolean;
   bailleurSignatureSlot?: React.ReactNode;
   bailleurSignatureUrl?: string | null;
   bailleurSignatureAt?: string | null;
@@ -165,8 +132,10 @@ type Props = {
   locataireIp?: string | null;
 };
 
+// ─── Composant ───────────────────────────────────────────────────────────────
 export default function BailMeubleDocument({
   data,
+  templateMode = false,
   bailleurSignatureSlot,
   bailleurSignatureUrl,
   bailleurSignatureAt,
@@ -179,26 +148,26 @@ export default function BailMeubleDocument({
     adresse, ville, etage, surface, nbPieces, loyer,
     montantCharges, detailCharges, dateDebut, irlTrimestre, irlValeur,
     loyerReference, loyerReferenceMaj,
-    prenomNom, dateNaissance, villeNaissance, departementNaissance, adresseLocataire, tel, mailLocataire,
-    garantCivilite, garantPrenomNom, garantAdresse,
+    prenomNom, dateNaissance, villeNaissance, departementNaissance,
+    adresseLocataire, tel, mailLocataire,
+    garantCivilite, garantPrenomNom, garantDateNaissance, garantAdresse,
     typeChauffage, courExtVegetalisee, loyerPrecedentLocataire, coutEnergMensuel, dpePdf,
   } = data;
+
+  const T = templateMode; // raccourci
 
   const charges = montantCharges ?? 0;
   const totalCC = loyer + charges;
   const depot = loyer;
   const niveau = formatNiveau(etage);
 
-  const dateDebutFR = dateDebut ? formatDateSlash(dateDebut) : "___________";
-  const dateFinFR = dateDebut ? formatDateSlash(addOneYear(dateDebut)) : "___________";
-  const dateRevisionSlash = dateDebut ? formatDateSlash(addOneYearExact(dateDebut)) : "__/__/____";
+  const dateDebutFR   = dateDebut ? formatDateSlash(dateDebut)             : "___________";
+  const dateFinFR     = dateDebut ? formatDateSlash(addOneYear(dateDebut)) : "___________";
+  const dateRevision  = dateDebut ? formatDateSlash(addOneYearExact(dateDebut)) : "__/__/____";
 
-  // "Fait à" : date réelle de signature du locataire ou, à défaut, aujourd'hui
   const dateSignatureFR = locataireSignatureAt
     ? new Date(locataireSignatureAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })
     : new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
-
-  const tenantFilled = !!prenomNom;
 
   return (
     <div className="bail-doc bg-white text-sm text-gray-900 leading-relaxed">
@@ -219,6 +188,8 @@ export default function BailMeubleDocument({
         <h2 className="bail-h2">I. Désignation des parties</h2>
         <p className="mb-3">Le présent contrat est conclu entre les soussignés&nbsp;:</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+
+          {/* Bailleur */}
           <div className="border border-gray-300 rounded p-3 space-y-0.5">
             <p className="font-semibold">Bailleur</p>
             <p>Gautier Lictevout</p>
@@ -228,25 +199,19 @@ export default function BailMeubleDocument({
             <p className="text-xs text-gray-500">Email&nbsp;: gautier@lictevout.com</p>
             <p className="text-xs font-medium mt-1">Désigné ci-après « le Bailleur »</p>
           </div>
-          <div className={`border rounded p-3 space-y-0.5 ${!tenantFilled ? "border-amber-300 bg-amber-50" : "border-gray-300"}`}>
+
+          {/* Locataire */}
+          <div className={`border rounded p-3 space-y-0.5 ${T ? "border-orange-200 bg-orange-50/30" : (!prenomNom ? "border-amber-300 bg-amber-50" : "border-gray-300")}`}>
             <p className="font-semibold">Locataire</p>
-            {tenantFilled ? (
-              <>
-                <p>{prenomNom}</p>
-                {dateNaissance && (
-                  <p className="text-xs text-gray-500">
-                    Né(e) le&nbsp;: {formatDateSlash(dateNaissance)}
-                    {villeNaissance && <> à {villeNaissance}</>}
-                    {departementNaissance && <> ({departementNaissance})</>}
-                  </p>
-                )}
-                {adresseLocataire && <p className="text-xs text-gray-500">{adresseLocataire}</p>}
-                {tel && <p className="text-xs text-gray-500">Tél.&nbsp;: {tel}</p>}
-                {mailLocataire && <p className="text-xs text-gray-500">Email&nbsp;: {mailLocataire}</p>}
-              </>
-            ) : (
-              <p className="italic text-amber-600 text-xs">En attente des informations du locataire</p>
-            )}
+            <p>{fv(T, prenomNom, "NOM LOCATAIRE")}</p>
+            <p className="text-xs text-gray-500">
+              Né(e) le&nbsp;: {fv(T, dateNaissance ? formatDateSlash(dateNaissance) : null, "DATE NAISSANCE")}
+              {" "}à {fv(T, villeNaissance, "VILLE NAISSANCE")}
+              {" "}({fv(T, departementNaissance, "DEPT NAISSANCE")})
+            </p>
+            <p className="text-xs text-gray-500">{fv(T, adresseLocataire, "ADRESSE LOCATAIRE")}</p>
+            <p className="text-xs text-gray-500">Tél.&nbsp;: {fv(T, tel, "TÉLÉPHONE")}</p>
+            <p className="text-xs text-gray-500">Email&nbsp;: {fv(T, mailLocataire, "EMAIL LOCATAIRE")}</p>
             <p className="text-xs font-medium mt-1">Désigné ci-après « le Locataire »</p>
           </div>
         </div>
@@ -258,10 +223,17 @@ export default function BailMeubleDocument({
         <p className="mb-2">Le présent contrat a pour objet la location d&apos;un logement meublé ainsi déterminé&nbsp;:</p>
 
         <h3 className="bail-h3">A. Consistance du logement</h3>
-        <p><strong>Adresse&nbsp;:</strong> {adresse ?? `${ville ?? "LILLE"}, 4 rue Flamen`}{niveau ? `, ${niveau}` : ""}</p>
+        <p>
+          <strong>Adresse&nbsp;:</strong>{" "}
+          {fv(T, adresse ?? `${ville ?? "LILLE"}, 4 rue Flamen`, "ADRESSE DU BIEN")}
+          {T ? <>{", "}<F label="NIVEAU" /></> : (niveau ? `, ${niveau}` : "")}
+        </p>
         <p><strong>Type d&apos;habitat&nbsp;:</strong> ☑ collectif / ☑ monopropriété</p>
         <p><strong>Période de construction&nbsp;:</strong> ☑ avant 1949</p>
-        <p><strong>Surface habitable&nbsp;:</strong> {surface} m²&nbsp;&nbsp;&nbsp;<strong>Pièces principales&nbsp;:</strong> {nbPieces}</p>
+        <p>
+          <strong>Surface habitable&nbsp;:</strong> {fv(T, surface, "SURFACE")} m²&nbsp;&nbsp;&nbsp;
+          <strong>Pièces principales&nbsp;:</strong> {fv(T, nbPieces, "NB PIÈCES")}
+        </p>
 
         <h3 className="bail-h3 mt-3">B. Destination des locaux</h3>
         <p>☑ Usage d&apos;habitation</p>
@@ -281,20 +253,27 @@ export default function BailMeubleDocument({
           <li>☑ L&apos;utilisation de radiateurs électriques d&apos;appoint est strictement interdite</li>
           <li>☑ La colocation n&apos;est pas permise pour ce logement</li>
           <li>☑ La sous-location de tout ou partie du logement est totalement interdite</li>
-          {courExtVegetalisee && (
-            <li>☑ Le logement dispose d&apos;une cour extérieure végétalisée. L&apos;entretien des végétaux (taille, désherbage, arrosage) est à la charge exclusive du locataire. À la restitution du logement, les extérieurs devront être rendus avec les végétaux soignés et taillés, les surfaces parfaitement entretenues et nettoyées.</li>
+          {(T || courExtVegetalisee) && (
+            <li>
+              {T && <F label="SI COUR EXT. VÉGÉTALISÉE : " />}
+              {" "}☑ Le logement dispose d&apos;une cour extérieure végétalisée. L&apos;entretien des végétaux (taille, désherbage, arrosage) est à la charge exclusive du locataire. À la restitution du logement, les extérieurs devront être rendus avec les végétaux soignés et taillés, les surfaces parfaitement entretenues et nettoyées.
+            </li>
           )}
         </ul>
 
-        {typeChauffage && (
+        {(T || typeChauffage) && (
           <>
             <h3 className="bail-h3 mt-3">G. Chauffage</h3>
             <p>
               <strong>Type de chauffage&nbsp;:</strong>{" "}
-              {typeChauffage === "individuel_gaz" ? "Individuel au gaz" : "Individuel électrique"}
+              {T
+                ? <F label="TYPE CHAUFFAGE" />
+                : (typeChauffage === "individuel_gaz" ? "Individuel au gaz" : "Individuel électrique")
+              }
             </p>
-            {typeChauffage === "individuel_gaz" && (
+            {(T || typeChauffage === "individuel_gaz") && (
               <p className="text-xs text-gray-600 mt-1">
+                {T && <><F label="SI GAZ : " /></>}
                 L&apos;abonnement à un fournisseur de gaz est au choix et à la charge du locataire. Ce dernier s&apos;engage à effectuer un entretien annuel de la chaudière au plus tard le 31 décembre de chaque année.
               </p>
             )}
@@ -305,8 +284,10 @@ export default function BailMeubleDocument({
       {/* III — Durée */}
       <section className="mb-6">
         <h2 className="bail-h2">III. Date de prise d&apos;effet et durée du contrat</h2>
-        <p><strong>A. Date de prise d&apos;effet&nbsp;:</strong> {dateDebutFR}</p>
-        <p className="mt-1"><strong>B. Durée du contrat&nbsp;:</strong> Un an, renouvelable tacitement, soit jusqu&apos;au {dateFinFR}</p>
+        <p><strong>A. Date de prise d&apos;effet&nbsp;:</strong> {fv(T, dateDebutFR, "DATE DÉBUT")}</p>
+        <p className="mt-1">
+          <strong>B. Durée du contrat&nbsp;:</strong> Un an, renouvelable tacitement, soit jusqu&apos;au {fv(T, dateFinFR, "DATE FIN (DATE DÉBUT + 1 AN)")}
+        </p>
         <p className="text-xs text-gray-500 mt-2">
           Les contrats de location de logements meublés sont reconduits tacitement à leur terme pour une durée d&apos;un an dans les mêmes conditions.
           Le locataire peut mettre fin au bail à tout moment après avoir donné congé (préavis d&apos;un mois).
@@ -319,26 +300,45 @@ export default function BailMeubleDocument({
         <h2 className="bail-h2">IV. Conditions financières</h2>
 
         <h3 className="bail-h3">A. Loyer</h3>
-        <p><strong>Montant du loyer mensuel&nbsp;:</strong> {loyer.toLocaleString("fr-FR")} € — {montantEnLettres(loyer)}</p>
-        {loyerReference && (
+        <p>
+          <strong>Montant du loyer mensuel&nbsp;:</strong>{" "}
+          {fv(T, loyer.toLocaleString("fr-FR"), "LOYER HC")} € —{" "}
+          {fv(T, montantEnLettres(loyer), "LOYER EN LETTRES")}
+        </p>
+        {(T || loyerReference) && (
           <div className="text-xs text-gray-600 mt-1 space-y-0.5">
             <p>Soumis au décret d&apos;encadrement des loyers à la relocation&nbsp;: ☑ Oui</p>
             <p>Soumis au loyer de référence majoré fixé par arrêté préfectoral&nbsp;: ☑ Oui</p>
-            <p>Loyer de référence&nbsp;: {loyerReference} €/m²{loyerReferenceMaj ? ` — Majoré : ${loyerReferenceMaj} €/m²` : ""}</p>
-            <p>Loyer du dernier locataire&nbsp;: {loyerPrecedentLocataire !== null && loyerPrecedentLocataire !== undefined
-              ? `${loyerPrecedentLocataire.toLocaleString("fr-FR")} € / mois`
-              : "Non applicable"}</p>
+            <p>
+              Loyer de référence&nbsp;: {fv(T, loyerReference, "LOYER REF")} €/m²
+              {(T || loyerReferenceMaj) && <> — Majoré : {fv(T, loyerReferenceMaj, "LOYER REF MAJORÉ")} €/m²</>}
+            </p>
+            <p>
+              Loyer du dernier locataire&nbsp;:{" "}
+              {fv(T,
+                loyerPrecedentLocataire != null
+                  ? `${loyerPrecedentLocataire.toLocaleString("fr-FR")} € / mois`
+                  : "Non applicable",
+                "LOYER PRÉCÉDENT LOCATAIRE"
+              )}
+            </p>
           </div>
         )}
         <p className="mt-2 text-xs text-gray-600">
-          Date de révision&nbsp;: {dateRevisionSlash} et tous les ans aux dates anniversaires<br />
-          Trimestre de référence IRL&nbsp;: {irlTrimestre ?? "___"} — Indice&nbsp;: {irlValeur ?? "___"}
+          Date de révision&nbsp;: {fv(T, dateRevision, "DATE RÉVISION")} et tous les ans aux dates anniversaires<br />
+          Trimestre de référence IRL&nbsp;: {fv(T, irlTrimestre ?? "___", "IRL TRIMESTRE")} — Indice&nbsp;: {fv(T, irlValeur ?? "___", "IRL VALEUR")}
         </p>
 
         <h3 className="bail-h3 mt-3">B. Charges</h3>
-        <p><strong>Forfait de charges mensuel&nbsp;:</strong> {charges.toLocaleString("fr-FR")} € — {montantEnLettres(charges)}</p>
-        {detailCharges && (
-          <p className="text-xs text-gray-600 mt-1"><strong>Inclus&nbsp;:</strong> {detailCharges}</p>
+        <p>
+          <strong>Forfait de charges mensuel&nbsp;:</strong>{" "}
+          {fv(T, charges.toLocaleString("fr-FR"), "CHARGES")} € —{" "}
+          {fv(T, montantEnLettres(charges), "CHARGES EN LETTRES")}
+        </p>
+        {(T || detailCharges) && (
+          <p className="text-xs text-gray-600 mt-1">
+            <strong>Inclus&nbsp;:</strong> {fv(T, detailCharges, "DÉTAIL CHARGES")}
+          </p>
         )}
 
         <h3 className="bail-h3 mt-3">C. Modalités de paiement</h3>
@@ -348,35 +348,46 @@ export default function BailMeubleDocument({
         </p>
         <p className="mt-2">
           <strong>Total à la première échéance&nbsp;:</strong>{" "}
-          {loyer.toLocaleString("fr-FR")} € HC + {charges.toLocaleString("fr-FR")} € charges = <strong>{totalCC.toLocaleString("fr-FR")} € CC/mois</strong>
+          {fv(T, loyer.toLocaleString("fr-FR"), "LOYER HC")} € HC +{" "}
+          {fv(T, charges.toLocaleString("fr-FR"), "CHARGES")} € charges ={" "}
+          <strong>{fv(T, totalCC.toLocaleString("fr-FR"), "TOTAL CC")} € CC/mois</strong>
         </p>
 
         <h3 className="bail-h3 mt-3">D. Dépenses énergétiques</h3>
         <p className="text-xs text-gray-600">
-          Estimation des coûts annuels d&apos;énergie : voir le DPE joint en annexe.
-          {coutEnergMensuel !== null && coutEnergMensuel !== undefined && (
-            <> Coûts énergétiques mensuels constatés du précédent locataire&nbsp;: <strong>{coutEnergMensuel.toLocaleString("fr-FR")} € / mois</strong>.</>
-          )}
-          {(coutEnergMensuel === null || coutEnergMensuel === undefined) && (
-            <> Coûts énergétiques du précédent locataire&nbsp;: <strong>Non applicable</strong>.</>
-          )}
+          Estimation des coûts annuels d&apos;énergie : voir le DPE joint en annexe.{" "}
+          Coûts énergétiques mensuels constatés du précédent locataire&nbsp;:{" "}
+          <strong>{fv(T, coutEnergMensuel != null ? `${coutEnergMensuel.toLocaleString("fr-FR")} € / mois` : "Non applicable", "COÛTS ÉNERG. PRÉCÉDENT")}</strong>.
         </p>
 
         <h3 className="bail-h3 mt-3">E. Garanties du locataire</h3>
-        <p>
-          Le bailleur déclare accepter la caution fournie par le locataire. Un acte de cautionnement est signé pour cette location.
-          {garantCivilite && garantPrenomNom && (
-            <> Il entre en vigueur le {dateDebutFR}. Le garant est {garantCivilite} {garantPrenomNom}
-            {garantAdresse ? `, domicilié(e) ${garantAdresse}` : ""}.</>
-          )}
-        </p>
+        {data.pasDeGarant ? (
+          <p>Le locataire ne présente pas de garant pour ce bail. Aucun acte de cautionnement n&apos;est joint.</p>
+        ) : T ? (
+          <p>
+            Le bailleur déclare accepter la caution fournie par le locataire. Un acte de cautionnement est signé pour cette location.
+            Il entre en vigueur le {fv(T, dateDebutFR, "DATE DÉBUT")}.
+            Le garant est {fv(T, garantCivilite, "CIVILITÉ GARANT")} {fv(T, garantPrenomNom, "NOM GARANT")},
+            domicilié(e) {fv(T, garantAdresse, "ADRESSE GARANT")}.
+          </p>
+        ) : (
+          <p>
+            Le bailleur déclare accepter la caution fournie par le locataire. Un acte de cautionnement est signé pour cette location.
+            Il entre en vigueur le {dateDebutFR}.
+            Le garant est {garantCivilite} {garantPrenomNom},
+            domicilié(e) {garantAdresse}.
+          </p>
+        )}
       </section>
 
       {/* V — Dépôt de garantie */}
       <section className="mb-6">
         <h2 className="bail-h2">V. Garanties</h2>
         <p>
-          Dépôt de garantie&nbsp;: <strong>un mois de loyer hors charges, soit {depot.toLocaleString("fr-FR")} € ({montantEnLettres(depot)})</strong>
+          Dépôt de garantie&nbsp;:{" "}
+          <strong>
+            un mois de loyer hors charges, soit {fv(T, depot.toLocaleString("fr-FR"), "DÉPÔT GARANTIE")} € ({fv(T, montantEnLettres(depot), "DÉPÔT EN LETTRES")})
+          </strong>
         </p>
       </section>
 
@@ -396,31 +407,52 @@ export default function BailMeubleDocument({
         <h2 className="bail-h2">VII. Annexes</h2>
         <ul className="text-xs text-gray-600 list-disc list-inside space-y-1">
           <li><strong>Annexe 1</strong> — Notice d&apos;information relative aux droits et obligations des locataires et bailleurs</li>
-          <li><strong>Annexe 2</strong> — Diagnostic de Performance Énergétique (DPE){!dpePdf && <span className="italic text-gray-400"> — document à joindre</span>}</li>
+          <li><strong>Annexe 2</strong> — Diagnostic de Performance Énergétique (DPE){!dpePdf && !T && <span className="italic text-gray-400"> — document à joindre</span>}</li>
           <li><strong>Annexe 3</strong> — Inventaire des éléments mobiliers et état des lieux à l&apos;entrée</li>
-          <li><strong>Annexe 4</strong> — Acte de cautionnement solidaire</li>
+          {!data.pasDeGarant && <li><strong>Annexe 4</strong> — Acte de cautionnement solidaire</li>}
         </ul>
       </section>
 
       {/* Signatures */}
       <div className="border-t border-gray-300 pt-6">
-        <p className="text-sm mb-6">Fait à Lille, le {dateSignatureFR}</p>
+        <p className="text-sm mb-6">Fait à Lille, le {fv(T, dateSignatureFR, "DATE SIGNATURE")}</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
-          <SignatureSlot
-            label="Le Bailleur"
-            name="Gautier Lictevout"
-            signatureDataUrl={bailleurSignatureUrl}
-            signedAt={bailleurSignatureAt}
-            placeholder={bailleurSignatureSlot}
-          />
-          <SignatureSlot
-            label="Le Locataire"
-            name={prenomNom ?? "___________________"}
-            signatureDataUrl={locataireSignatureUrl}
-            signedAt={locataireSignatureAt}
-            extra={locataireIp}
-            placeholder={locataireSignatureSlot}
-          />
+          {T ? (
+            <>
+              <div>
+                <p className="font-medium mb-1">Le Bailleur</p>
+                <p className="text-sm text-gray-600 mb-2">Gautier Lictevout</p>
+                <div className="border border-dashed border-orange-200 rounded-lg h-20 flex items-center justify-center bg-orange-50/40">
+                  <F label="SIGNATURE BAILLEUR" />
+                </div>
+              </div>
+              <div>
+                <p className="font-medium mb-1">Le Locataire</p>
+                <p className="text-sm text-gray-600 mb-2"><F label="NOM LOCATAIRE" /></p>
+                <div className="border border-dashed border-orange-200 rounded-lg h-20 flex items-center justify-center bg-orange-50/40">
+                  <F label="SIGNATURE LOCATAIRE" />
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <SignatureSlot
+                label="Le Bailleur"
+                name="Gautier Lictevout"
+                signatureDataUrl={bailleurSignatureUrl}
+                signedAt={bailleurSignatureAt}
+                placeholder={bailleurSignatureSlot}
+              />
+              <SignatureSlot
+                label="Le Locataire"
+                name={prenomNom ?? "___________________"}
+                signatureDataUrl={locataireSignatureUrl}
+                signedAt={locataireSignatureAt}
+                extra={locataireIp}
+                placeholder={locataireSignatureSlot}
+              />
+            </>
+          )}
         </div>
       </div>
 
@@ -439,7 +471,11 @@ export default function BailMeubleDocument({
           <span className="annexe-num">Annexe 2</span>
           <span>Diagnostic de Performance Énergétique (DPE)</span>
         </div>
-        {dpePdf ? (
+        {T ? (
+          <div className="flex items-center justify-center h-32 border-2 border-dashed border-orange-200 rounded-xl bg-orange-50/30">
+            <F label="DPE (PDF)" />
+          </div>
+        ) : dpePdf ? (
           <PdfPages src={dpePdf} />
         ) : (
           <div className="flex items-center justify-center h-64 border-2 border-dashed border-gray-200 rounded-xl text-gray-400 text-sm">
@@ -454,7 +490,11 @@ export default function BailMeubleDocument({
           <span className="annexe-num">Annexe 3</span>
           <span>Inventaire des éléments mobiliers et état des lieux à l&apos;entrée</span>
         </div>
-        {data.inventaire ? (
+        {T ? (
+          <div className="flex items-center justify-center h-32 border-2 border-dashed border-orange-200 rounded-xl bg-orange-50/30">
+            <F label="INVENTAIRE" />
+          </div>
+        ) : data.inventaire ? (
           <InventaireAnnexe inventaire={data.inventaire} />
         ) : (
           <div className="flex items-center justify-center h-32 border-2 border-dashed border-gray-200 rounded-xl text-gray-400 text-sm">
@@ -463,24 +503,30 @@ export default function BailMeubleDocument({
         )}
       </div>
 
-      {/* ═══════════════ ANNEXE 4 — Acte de cautionnement ═══════════════ */}
-      <div className="annexe-page">
-        <div className="annexe-header">
-          <span className="annexe-num">Annexe 4</span>
-          <span>Acte de cautionnement solidaire</span>
-        </div>
-        {data.cautionData ? (
-          <CautionDocument
-            data={data.cautionData}
-            faitA={data.garantLieu ?? undefined}
-            signatureImageUrl={data.signatureCaution}
-          />
-        ) : (
-          <div className="flex items-center justify-center h-32 border-2 border-dashed border-gray-200 rounded-xl text-gray-400 text-sm">
-            Acte de cautionnement — en attente de signature du garant
+      {/* ═══════════════ ANNEXE 4 — Acte de cautionnement (masqué si pas de garant) ═══════════════ */}
+      {!data.pasDeGarant && (
+        <div className="annexe-page">
+          <div className="annexe-header">
+            <span className="annexe-num">Annexe 4</span>
+            <span>Acte de cautionnement solidaire</span>
           </div>
-        )}
-      </div>
+          {T ? (
+            <div className="flex items-center justify-center h-32 border-2 border-dashed border-orange-200 rounded-xl bg-orange-50/30">
+              <F label="ACTE DE CAUTIONNEMENT" />
+            </div>
+          ) : data.cautionData ? (
+            <CautionDocument
+              data={data.cautionData}
+              faitA={data.garantLieu ?? undefined}
+              signatureImageUrl={data.signatureCaution}
+            />
+          ) : (
+            <div className="flex items-center justify-center h-32 border-2 border-dashed border-gray-200 rounded-xl text-gray-400 text-sm">
+              Acte de cautionnement — en attente de signature du garant
+            </div>
+          )}
+        </div>
+      )}
 
       <style>{`
         @media print {

@@ -120,7 +120,26 @@ model Bail {
   signatureBailleur    String?
   signatureBailleurAt  String?
 
+  pasDeGarant      Boolean      @default(false)
+
   status           String       @default("pending")
   // pending → info_submitted → caution_signed → signed_tenant → signed_both
   createdAt        DateTime     @default(now())
+
+  signatureOtps    SignatureOtp[]
+}
+
+// ─── OTP de signature (réutilisable pour tout document) ───────────────────────
+model SignatureOtp {
+  id           Int       @id @default(autoincrement())
+  sessionToken String    @unique
+  documentType String    // "bail" | "caution" | futur: "quittance", etc.
+  bailId       Int
+  bail         Bail      @relation(fields: [bailId], references: [id], onDelete: Cascade)
+  signerRole   String    // "locataire" | "garant"
+  email        String
+  codeHash     String
+  expiresAt    DateTime
+  verifiedAt   DateTime?
+  createdAt    DateTime  @default(now())
 }

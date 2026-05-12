@@ -13,71 +13,17 @@
 import BailMeubleDocument from "@/components/BailMeubleDocument";
 import BailNonMeubleDocument from "@/components/BailNonMeubleDocument";
 import BailLocalProfessionnelDocument from "@/components/BailLocalProfessionnelDocument";
-import CautionDocument, { CautionDocumentData } from "@/components/CautionDocument";
 
-// ─── Type partagé (data) ───────────────────────────────────────────────────────
-export type BailDocumentData = {
-  // Appartement
-  adresse: string | null;
-  ville: string | null;
-  etage: number | null;
-  surface: number;
-  nbPieces: number;
-  loyer: number;
-  montantCharges: number | null;
-  detailCharges: string | null;
-
-  // Métadonnées bail
-  dateDebut: string | null;
-  irlTrimestre: string | null;
-  irlValeur: string | null;
-  loyerReference: string | null;
-  loyerReferenceMaj: string | null;
-
-  // Locataire
-  prenomNom: string | null;
-  dateNaissance: string | null;
-  villeNaissance?: string | null;
-  departementNaissance?: string | null;
-  adresseLocataire: string | null;
-  tel: string | null;
-  mailLocataire: string | null;
-
-  // Garant
-  garantCivilite: string | null;
-  garantPrenomNom: string | null;
-  garantDateNaissance: string | null;
-  garantAdresse: string | null;
-
-  // Appartement extras
-  typeChauffage: string | null;
-  courExtVegetalisee: boolean;
-  loyerPrecedentLocataire: number | null;
-  coutEnergMensuel: number | null;
-
-  // DPE
-  dpePdf: string | null;
-
-  // Annexes physiques (optionnel)
-  inventaire?: {
-    dateEntree: string | null;
-    lignes: string; // JSON
-    remarqueCuisine?: string | null;
-    remarqueSDB?: string | null;
-    remarquePiece?: string | null;
-    remarqueGeneral?: string | null;
-  } | null;
-  cautionData?: CautionDocumentData | null;
-  garantLieu?: string | null;
-  signatureCaution?: string | null;
-  signatureCautionAt?: string | null;
-};
+// Re-export depuis la source unique de vérité
+export type { BailDocumentData } from "@/lib/bail-document-types";
+import type { BailDocumentData } from "@/lib/bail-document-types";
 
 // ─── Props du routeur ─────────────────────────────────────────────────────────
 type Props = {
   typeBail: string;
   data: BailDocumentData;
-  /** Slot de signature pour le bailleur (pass null pour espace vide, undefined pour placeholder tirets) */
+  /** Mode modèle : affiche les champs sous forme <<CHAMP>> en orange au lieu des valeurs */
+  templateMode?: boolean;
   bailleurSignatureSlot?: React.ReactNode;
   bailleurSignatureUrl?: string | null;
   bailleurSignatureAt?: string | null;

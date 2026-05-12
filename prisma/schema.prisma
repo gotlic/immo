@@ -25,7 +25,7 @@ model Appartement {
   adresse         String?
   ville           String?
 
-  meuble                   Boolean   @default(true)   // meublé (true) ou non meublé (false)
+  typeBail                 String    @default("meuble") // "meuble" | "non_meuble" | "local_professionnel"
   typeChauffage            String?   // "individuel_gaz" | "individuel_electrique"
   courExtVegetalisee       Boolean   @default(false)
   loyerPrecedentLocataire  Float?    // BO uniquement — affiché dans le bail

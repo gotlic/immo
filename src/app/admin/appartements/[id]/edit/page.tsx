@@ -14,7 +14,7 @@ type Appartement = {
   montantCharges: number | null; detailCharges: string | null;
   dpeClasse: string | null; dpePdf: string | null; disponible: boolean;
   specificites: string | null; adresse: string | null; ville: string | null;
-  meuble: boolean; typeChauffage: string | null; courExtVegetalisee: boolean;
+  typeBail: string; typeChauffage: string | null; courExtVegetalisee: boolean;
   loyerPrecedentLocataire: number | null; coutEnergMensuel: number | null;
   photos: { id: number; url: string; ordre: number }[];
   videos: { id: number; url: string; type: string }[];
@@ -103,7 +103,7 @@ export default function EditAppartementPage() {
               specificites: appart.specificites ?? "",
               adresse: appart.adresse ?? "",
               ville: appart.ville ?? "",
-              meuble: appart.meuble,
+              typeBail: appart.typeBail,
               typeChauffage: appart.typeChauffage ?? "",
               courExtVegetalisee: appart.courExtVegetalisee,
               loyerPrecedentLocataire: appart.loyerPrecedentLocataire !== null ? String(appart.loyerPrecedentLocataire) : "",

@@ -37,7 +37,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       specificites: data.specificites,
       adresse: data.adresse,
       ville: data.ville,
-      meuble: data.meuble ?? true,
+      typeBail: data.typeBail ?? "meuble",
       typeChauffage: data.typeChauffage || null,
       courExtVegetalisee: data.courExtVegetalisee ?? false,
       loyerPrecedentLocataire: data.loyerPrecedentLocataire ? parseFloat(data.loyerPrecedentLocataire) : null,

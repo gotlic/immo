@@ -38,7 +38,7 @@ type BailInfo = {
     titre: string; adresse: string | null; ville: string | null;
     etage: number | null; surface: number; nbPieces: number;
     loyer: number; montantCharges: number | null; detailCharges: string | null;
-    dpePdf: string | null;
+    dpePdf: string | null; typeBail: string;
     typeChauffage: string | null; courExtVegetalisee: boolean;
     loyerPrecedentLocataire: number | null; coutEnergMensuel: number | null;
     inventaire: {
@@ -233,6 +233,7 @@ export default function TenantFormPage() {
         </div>
         <div className="max-w-4xl mx-auto px-4 sm:px-8 py-8 print:p-0">
           <BailDocument
+            typeBail={bail.appartement.typeBail}
             data={fullDocData}
             locataireSignatureUrl={bail.signatureLocataire}
             locataireSignatureAt={bail.signatureLocataireAt}
@@ -519,6 +520,7 @@ export default function TenantFormPage() {
       {/* Document */}
       <div className="max-w-4xl mx-auto px-4 sm:px-8 py-8 print:p-0">
         <BailDocument
+          typeBail={bail.appartement.typeBail}
           data={docData}
           locataireSignatureSlot={signatureSlot}
           bailleurSignatureSlot={

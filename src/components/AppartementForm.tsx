@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import { BAIL_TYPES } from "@/lib/bail-types";
 
 type Photo = { id: number; url: string; ordre: number };
 type Video = { id: number; url: string; type: string };
@@ -13,7 +14,7 @@ type FormData = {
   montantCharges: string; detailCharges: string;
   dpeClasse: string; disponible: boolean; specificites: string;
   adresse: string; ville: string;
-  meuble: boolean;
+  typeBail: string;
   typeChauffage: string;
   courExtVegetalisee: boolean;
   loyerPrecedentLocataire: string;
@@ -32,7 +33,7 @@ const EMPTY: FormData = {
   titre: "", description: "", surface: "", nbPieces: "", etage: "",
   loyer: "", montantCharges: "", detailCharges: "",
   dpeClasse: "", disponible: true, specificites: "", adresse: "", ville: "",
-  meuble: true,
+  typeBail: "meuble",
   typeChauffage: "", courExtVegetalisee: false,
   loyerPrecedentLocataire: "", coutEnergMensuel: "",
 };
@@ -44,7 +45,7 @@ export default function AppartementForm({ appartementId, initial, initialPhotos 
     ...initial,
     // Les booléens ne doivent jamais être undefined (uncontrolled checkbox)
     disponible: initial?.disponible ?? true,
-    meuble: initial?.meuble ?? true,
+    typeBail: initial?.typeBail ?? "meuble",
     courExtVegetalisee: Boolean(initial?.courExtVegetalisee),
   });
   const [photos, setPhotos] = useState<Photo[]>(initialPhotos);
@@ -311,16 +312,15 @@ export default function AppartementForm({ appartementId, initial, initialPhotos 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="label">Type de location</label>
-            <div className="flex gap-4 mt-1.5">
-              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                <input type="radio" name="meuble" checked={form.meuble === true} onChange={() => set("meuble", true)} className="accent-gray-900" />
-                Meublé
-              </label>
-              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                <input type="radio" name="meuble" checked={form.meuble === false} onChange={() => set("meuble", false)} className="accent-gray-900" />
-                Non meublé
-              </label>
-            </div>
+            <select
+              value={form.typeBail}
+              onChange={(e) => set("typeBail", e.target.value)}
+              className="input"
+            >
+              {BAIL_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="label">Type de chauffage</label>

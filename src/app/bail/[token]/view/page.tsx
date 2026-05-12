@@ -33,7 +33,7 @@ type BailInfo = {
     loyer: number;
     montantCharges: number | null;
     detailCharges: string | null;
-    dpePdf: string | null;
+    dpePdf: string | null; typeBail: string;
     typeChauffage: string | null;
     courExtVegetalisee: boolean;
     loyerPrecedentLocataire: number | null;
@@ -128,7 +128,7 @@ function BailViewContent() {
 
       {/* Document */}
       <div className="max-w-4xl mx-auto px-4 sm:px-8 py-8 print:p-0">
-        <BailDocument data={docData} />
+        <BailDocument typeBail={a.typeBail} data={docData} />
       </div>
     </div>
   );

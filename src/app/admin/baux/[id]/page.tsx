@@ -17,7 +17,7 @@ type Appartement = {
   id: number; titre: string; adresse: string | null; ville: string | null;
   etage: number | null; surface: number; nbPieces: number;
   loyer: number; montantCharges: number | null; detailCharges: string | null;
-  dpePdf: string | null;
+  dpePdf: string | null; typeBail: string;
   typeChauffage: string | null; courExtVegetalisee: boolean;
   loyerPrecedentLocataire: number | null; coutEnergMensuel: number | null;
   inventaire: Inventaire | null;
@@ -288,6 +288,7 @@ export default function BailPage() {
       {/* Document bail */}
       <div className="max-w-4xl mx-auto px-4 sm:px-8 py-10 print:p-0 print:max-w-none">
         <BailDocument
+          typeBail={bail.appartement.typeBail}
           data={docData}
           bailleurSignatureUrl={bail.signatureBailleur}
           bailleurSignatureAt={bail.signatureBailleurAt}

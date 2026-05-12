@@ -13,7 +13,7 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ token:
           titre: true, adresse: true, ville: true, etage: true,
           surface: true, nbPieces: true,
           loyer: true, montantCharges: true, detailCharges: true,
-          dpePdf: true, typeChauffage: true, courExtVegetalisee: true,
+          dpePdf: true, typeBail: true, typeChauffage: true, courExtVegetalisee: true,
           loyerPrecedentLocataire: true, coutEnergMensuel: true,
           inventaire: {
             select: {

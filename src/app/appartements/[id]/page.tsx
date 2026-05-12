@@ -113,6 +113,7 @@ function Lightbox({ photos, startIndex, onClose }: {
           fill
           className="object-contain"
           sizes="90vw"
+          unoptimized={photos[index].url.startsWith("/uploads/")}
         />
       </div>
 
@@ -205,6 +206,7 @@ export default function AppartementPage() {
                     className="object-cover hover:scale-105 transition-transform duration-300"
                     sizes="(max-width: 1024px) 100vw, 60vw"
                     priority
+                    unoptimized={photos[0].url.startsWith("/uploads/")}
                   />
                   {!appart.disponible && (
                     <div className="absolute inset-0 bg-gray-900/50 flex items-center justify-center">
@@ -229,7 +231,7 @@ export default function AppartementPage() {
                           onClick={() => setLightboxIndex(i + 1)}
                           className="relative h-28 sm:h-20 rounded-lg overflow-hidden bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         >
-                          <Image src={p.url} alt="" fill className="object-cover hover:scale-105 transition-transform duration-200" sizes="20vw" />
+                          <Image src={p.url} alt="" fill className="object-cover hover:scale-105 transition-transform duration-200" sizes="20vw" unoptimized={p.url.startsWith("/uploads/")} />
                           {isLast && (
                             <div className="absolute inset-0 bg-black/50 flex items-center justify-center text-white text-sm font-semibold">
                               +{photos.length - 4}

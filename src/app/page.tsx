@@ -82,6 +82,7 @@ export default async function HomePage() {
                           fill
                           className="object-cover group-hover:scale-105 transition-transform duration-300"
                           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                          unoptimized={appart.photos[0].url.startsWith("/uploads/")}
                         />
                       ) : (
                         <div className="flex items-center justify-center h-full text-gray-300 text-4xl">

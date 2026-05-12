@@ -200,7 +200,7 @@ export default function AdminPage() {
                             <div className="flex items-center gap-3 sm:contents">
                               <div className="relative h-16 w-20 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100">
                                 {appart.photos[0] ? (
-                                  <Image src={appart.photos[0].url} alt="" fill sizes="80px" className="object-cover" />
+                                  <Image src={appart.photos[0].url} alt="" fill sizes="80px" className="object-cover" unoptimized={appart.photos[0].url.startsWith("/uploads/")} />
                                 ) : (
                                   <div className="flex items-center justify-center h-full text-gray-300 text-xl">🏠</div>
                                 )}

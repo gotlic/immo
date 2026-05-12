@@ -396,7 +396,7 @@ export default function AppartementForm({ appartementId, initial, initialPhotos 
                   dragId === photo.id ? "opacity-40 ring-2 ring-blue-400" : ""
                 }`}
               >
-                <Image src={photo.url} alt="" fill sizes="144px" className="object-cover pointer-events-none" />
+                <Image src={photo.url} alt="" fill sizes="144px" className="object-cover pointer-events-none" unoptimized={photo.url.startsWith("/uploads/")} />
 
                 {/* Badge couverture */}
                 {index === 0 && (

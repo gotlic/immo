@@ -29,7 +29,7 @@ app.prepare().then(() => {
       // Servir les uploads directement (Next.js ne les sert pas via Passenger)
       if (parsedUrl.pathname && parsedUrl.pathname.startsWith("/uploads/")) {
         const filename = parsedUrl.pathname.slice("/uploads/".length);
-        const filepath = path.join(process.cwd(), "public", "uploads", filename);
+        const filepath = path.join(__dirname, "public", "uploads", filename);
         try {
           const data = fs.readFileSync(filepath);
           const ext = path.extname(filename).toLowerCase();

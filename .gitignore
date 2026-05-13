@@ -44,6 +44,7 @@ next-env.d.ts
 
 dev.db
 prisma/dev.db
-public/uploads/
+public/uploads/*
+!public/uploads/.htaccess
 public/images/
 public/pdf.worker.min.mjs

@@ -5,6 +5,14 @@
 const { createServer } = require("http");
 const { parse } = require("url");
 const next = require("next");
+const fs = require("fs");
+const path = require("path");
+
+const MIME = {
+  ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
+  ".webp": "image/webp", ".gif": "image/gif", ".avif": "image/avif",
+  ".pdf": "application/pdf",
+};
 
 const dev = process.env.NODE_ENV !== "production";
 const port = parseInt(process.env.PORT || "3000", 10);
@@ -17,6 +25,25 @@ app.prepare().then(() => {
   createServer(async (req, res) => {
     try {
       const parsedUrl = parse(req.url, true);
+
+      // Servir les uploads directement (Next.js ne les sert pas via Passenger)
+      if (parsedUrl.pathname && parsedUrl.pathname.startsWith("/uploads/")) {
+        const filename = parsedUrl.pathname.slice("/uploads/".length);
+        const filepath = path.join(process.cwd(), "public", "uploads", filename);
+        try {
+          const data = fs.readFileSync(filepath);
+          const ext = path.extname(filename).toLowerCase();
+          res.setHeader("Content-Type", MIME[ext] || "application/octet-stream");
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+          res.end(data);
+          return;
+        } catch {
+          res.statusCode = 404;
+          res.end("Not found");
+          return;
+        }
+      }
+
       await handle(req, res, parsedUrl);
     } catch (err) {
       console.error("Error:", req.url, err);

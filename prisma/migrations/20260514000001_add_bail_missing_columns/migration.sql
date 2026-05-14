@@ -1,0 +1,3 @@
+-- Add missing columns to Bail table
+ALTER TABLE "Bail" ADD COLUMN "archived" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "Bail" ADD COLUMN "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP;

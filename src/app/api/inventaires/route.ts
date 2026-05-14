@@ -15,7 +15,13 @@ export async function GET() {
         select: { id: true, type: true, status: true, date: true },
       },
     },
-    orderBy: { appartement: { etage: "asc" } },
+  });
+
+  // Trier par étage (null en dernier)
+  inventaires.sort((a, b) => {
+    const ea = a.appartement.etage ?? 999;
+    const eb = b.appartement.etage ?? 999;
+    return ea - eb;
   });
 
   return NextResponse.json(inventaires);

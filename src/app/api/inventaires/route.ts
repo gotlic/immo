@@ -7,27 +7,24 @@ export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
-  try {
+  // Deux queries séparées pour éviter les problèmes d'include avec libsql
   const inventaires = await prisma.inventaire.findMany({
-    include: {
-      appartement: true,
-      etatsDesLieux: {
-        orderBy: { createdAt: "asc" },
-        select: { id: true, type: true, status: true, date: true },
-      },
-    },
+    include: { appartement: true },
   });
+
+  const edls = await prisma.etatDesLieux.findMany({
+    select: { id: true, inventaireId: true, type: true, status: true, date: true },
+    orderBy: { createdAt: "asc" },
+  });
+
+  // Associer les EDL à leur inventaire
+  const result = inventaires.map((inv) => ({
+    ...inv,
+    etatsDesLieux: edls.filter((e) => e.inventaireId === inv.id),
+  }));
 
   // Trier par étage (null en dernier)
-  inventaires.sort((a, b) => {
-    const ea = a.appartement.etage ?? 999;
-    const eb = b.appartement.etage ?? 999;
-    return ea - eb;
-  });
+  result.sort((a, b) => (a.appartement.etage ?? 999) - (b.appartement.etage ?? 999));
 
-  return NextResponse.json(inventaires);
-  } catch (e) {
-    console.error("/api/inventaires error:", e);
-    return NextResponse.json({ error: String(e) }, { status: 500 });
-  }
+  return NextResponse.json(result);
 }

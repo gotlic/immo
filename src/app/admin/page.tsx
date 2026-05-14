@@ -78,7 +78,8 @@ export default function AdminPage() {
       setInventairesLoading(true);
       fetch("/api/inventaires")
         .then((r) => r.json())
-        .then((data) => { setInventaires(data); setInventairesLoading(false); });
+        .then((data) => { setInventaires(Array.isArray(data) ? data : []); setInventairesLoading(false); })
+        .catch(() => setInventairesLoading(false));
     }
   }, [status, activeTab, activeSubTab, inventaires.length]);
 

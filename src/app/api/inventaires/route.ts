@@ -7,6 +7,7 @@ export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
+  try {
   const inventaires = await prisma.inventaire.findMany({
     include: {
       appartement: true,
@@ -25,4 +26,8 @@ export async function GET() {
   });
 
   return NextResponse.json(inventaires);
+  } catch (e) {
+    console.error("/api/inventaires error:", e);
+    return NextResponse.json({ error: String(e) }, { status: 500 });
+  }
 }

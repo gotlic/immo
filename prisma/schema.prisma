@@ -56,6 +56,62 @@ model Inventaire {
 
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
+
+  etatsDesLieux   EtatDesLieux[]
+}
+
+// ─── État des lieux (entrée ou sortie) ────────────────────────────────────────
+model EtatDesLieux {
+  id              Int         @id @default(autoincrement())
+  token           String      @unique  // lien locataire
+
+  inventaireId    Int
+  inventaire      Inventaire  @relation(fields: [inventaireId], references: [id], onDelete: Cascade)
+
+  type            String      // "entree" | "sortie"
+  date            String?     // "14/05/2026"
+
+  lignes          String      @default("[]")  // JSON — snapshot inventaire
+  photos          String      @default("[]")  // JSON — array d'URLs
+
+  remarqueCuisine String?
+  remarqueSDB     String?
+  remarquePiece   String?
+  remarqueGeneral String?
+
+  // Locataire
+  locataireNom    String?
+  locataireEmail  String?
+
+  // Signatures
+  signatureBailleur    String?
+  signatureBailleurAt  String?
+  signatureLocataire   String?
+  signatureLocataireAt String?
+  signatureLocataireIp String?
+
+  // PDF généré
+  pdfUrl          String?
+
+  status          String      @default("draft")
+  // draft → signed_bailleur → signed_both
+
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  otps            EtatDesLieuxOtp[]
+}
+
+model EtatDesLieuxOtp {
+  id              Int           @id @default(autoincrement())
+  sessionToken    String        @unique
+  etatDesLieuxId  Int
+  etatDesLieux    EtatDesLieux  @relation(fields: [etatDesLieuxId], references: [id], onDelete: Cascade)
+  email           String
+  codeHash        String
+  expiresAt       DateTime
+  verifiedAt      DateTime?
+  createdAt       DateTime      @default(now())
 }
 
 

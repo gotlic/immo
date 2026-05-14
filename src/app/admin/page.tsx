@@ -19,6 +19,12 @@ type BailListItem = {
   appartement: { titre: string; ville: string | null; adresse: string | null };
 };
 
+type InventaireListItem = {
+  id: number; appartementId: number; dateEntree: string | null;
+  appartement: { id: number; titre: string; adresse: string | null; ville: string | null; etage: number | null };
+  etatsDesLieux: { id: number; type: string; status: string; date: string | null }[];
+};
+
 type Tab = "appartements" | "echanges";
 type EchangeSubTab = "baux" | "inventaires";
 
@@ -36,8 +42,10 @@ export default function AdminPage() {
 
   const [appartements, setAppartements] = useState<Appartement[]>([]);
   const [baux, setBaux] = useState<BailListItem[]>([]);
+  const [inventaires, setInventaires] = useState<InventaireListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [bauxLoading, setBauxLoading] = useState(false);
+  const [inventairesLoading, setInventairesLoading] = useState(false);
 
   const [activeTab, setActiveTab] = useState<Tab>("appartements");
   const [activeSubTab, setActiveSubTab] = useState<EchangeSubTab>("baux");
@@ -63,6 +71,16 @@ export default function AdminPage() {
         .then((data) => { setBaux(data); setBauxLoading(false); });
     }
   }, [status, activeTab, activeSubTab, baux.length]);
+
+  // Charger les inventaires
+  useEffect(() => {
+    if (status === "authenticated" && activeTab === "echanges" && activeSubTab === "inventaires" && inventaires.length === 0) {
+      setInventairesLoading(true);
+      fetch("/api/inventaires")
+        .then((r) => r.json())
+        .then((data) => { setInventaires(data); setInventairesLoading(false); });
+    }
+  }, [status, activeTab, activeSubTab, inventaires.length]);
 
   async function handleDelete(id: number) {
     if (!confirm("Supprimer cet appartement ?")) return;
@@ -322,15 +340,88 @@ export default function AdminPage() {
             {/* ─ Sous-onglet Inventaires ─ */}
             {activeSubTab === "inventaires" && (
               <>
-                <div className="mb-6">
-                  <h2 className="text-xl font-semibold text-gray-900">Inventaires</h2>
-                  <p className="text-sm text-gray-400 mt-1">États des lieux d'entrée et de sortie.</p>
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h2 className="text-xl font-semibold text-gray-900">États des lieux</h2>
+                    <p className="text-sm text-gray-400 mt-1">Entrée et sortie par appartement.</p>
+                  </div>
                 </div>
-                <div className="text-center py-20 text-gray-400">
-                  <p className="text-4xl mb-3">🗂️</p>
-                  <p className="font-medium">Section à venir</p>
-                  <p className="text-sm mt-1">Les inventaires seront accessibles ici prochainement.</p>
-                </div>
+
+                {inventairesLoading ? (
+                  <div className="text-center py-20 text-gray-400">Chargement…</div>
+                ) : inventaires.length === 0 ? (
+                  <div className="text-center py-20 text-gray-400">
+                    <p className="text-4xl mb-3">🗂️</p>
+                    <p>Aucun inventaire trouvé. Créez d&apos;abord un inventaire pour chaque appartement.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {inventaires.map((inv) => {
+                      const edlEntree = inv.etatsDesLieux.filter((e) => e.type === "entree");
+                      const edlSortie = inv.etatsDesLieux.filter((e) => e.type === "sortie");
+                      const lastEntree = edlEntree[edlEntree.length - 1];
+                      const lastSortie = edlSortie[edlSortie.length - 1];
+                      const EDL_STATUS: Record<string, { label: string; color: string }> = {
+                        draft: { label: "Brouillon", color: "bg-gray-100 text-gray-500" },
+                        signed_bailleur: { label: "En attente locataire", color: "bg-blue-100 text-blue-700" },
+                        signed_both: { label: "Signé ✓", color: "bg-green-100 text-green-700" },
+                      };
+                      return (
+                        <div key={inv.id} className="bg-white rounded-xl border border-gray-200 p-4">
+                          <div className="flex items-start justify-between gap-4 flex-wrap">
+                            <div>
+                              <p className="font-medium text-gray-900">{inv.appartement.titre}</p>
+                              <p className="text-xs text-gray-400 mt-0.5">
+                                {[inv.appartement.adresse, inv.appartement.ville].filter(Boolean).join(", ")}
+                                {inv.appartement.etage !== null ? ` · ${inv.appartement.etage === 0 ? "RDC" : `${inv.appartement.etage}e étage`}` : ""}
+                                {inv.dateEntree ? ` · Inventaire du ${inv.dateEntree}` : ""}
+                              </p>
+                            </div>
+                            <div className="flex gap-2 flex-wrap">
+                              {/* Bouton Entrée */}
+                              {lastEntree ? (
+                                <Link
+                                  href={`/admin/edl/${lastEntree.id}`}
+                                  className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-medium border transition-colors hover:shadow-sm ${
+                                    EDL_STATUS[lastEntree.status]?.color ?? "bg-gray-100 text-gray-600"
+                                  }`}
+                                >
+                                  🔑 Entrée — {EDL_STATUS[lastEntree.status]?.label}
+                                </Link>
+                              ) : (
+                                <Link
+                                  href={`/admin/edl/new?appartementId=${inv.appartementId}&type=entree`}
+                                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-medium border border-dashed border-gray-300 text-gray-500 hover:border-gray-500 hover:text-gray-800 transition-colors"
+                                >
+                                  + Entrée
+                                </Link>
+                              )}
+
+                              {/* Bouton Sortie */}
+                              {lastSortie ? (
+                                <Link
+                                  href={`/admin/edl/${lastSortie.id}`}
+                                  className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-medium border transition-colors hover:shadow-sm ${
+                                    EDL_STATUS[lastSortie.status]?.color ?? "bg-gray-100 text-gray-600"
+                                  }`}
+                                >
+                                  🚪 Sortie — {EDL_STATUS[lastSortie.status]?.label}
+                                </Link>
+                              ) : (
+                                <Link
+                                  href={`/admin/edl/new?appartementId=${inv.appartementId}&type=sortie`}
+                                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-medium border border-dashed border-gray-300 text-gray-500 hover:border-gray-500 hover:text-gray-800 transition-colors"
+                                >
+                                  + Sortie
+                                </Link>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </>
             )}
           </>

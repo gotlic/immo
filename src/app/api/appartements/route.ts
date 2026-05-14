@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 export async function GET() {
   const appartements = await prisma.appartement.findMany({
     include: { photos: { orderBy: { ordre: "asc" } }, videos: true },
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ etage: "asc" }, { createdAt: "desc" }],
   });
   return NextResponse.json(appartements);
 }

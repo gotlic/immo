@@ -102,8 +102,10 @@ export default function TenantFormPage() {
           if (data.garantAdresse)       setGarantAdresse(data.garantAdresse);
           if (data.garantEmail)         setGarantEmail(data.garantEmail);
           // Naviguer à l'étape correcte selon le statut
-          if (data.status === "info_submitted") setStep("waiting_caution");
-          if (data.status === "caution_signed" || (data.pasDeGarant && data.status === "caution_signed")) setStep("preview");
+          if (data.status === "info_submitted") {
+            setStep(data.pasDeGarant ? "preview" : "waiting_caution");
+          }
+          if (data.status === "caution_signed") setStep("preview");
         }
         setLoading(false);
       });
@@ -315,7 +317,7 @@ export default function TenantFormPage() {
   );
 
   /* ── ÉCRAN D'ATTENTE : caution pas encore signée ── */
-  if (step === "waiting_caution" || bail.status === "info_submitted") {
+  if (step === "waiting_caution") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 max-w-md w-full text-center space-y-4">
@@ -329,6 +331,15 @@ export default function TenantFormPage() {
             Vous recevrez un email dès que votre garant aura signé, vous permettant
             de lire et signer le bail.
           </p>
+          {/* Prévisualiser / télécharger le bail avant signature */}
+          <a
+            href={`/bail/${token}/view`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 w-full justify-center bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium text-sm px-4 py-2.5 rounded-xl transition-colors"
+          >
+            🖨️ Télécharger / imprimer le bail
+          </a>
           <button
             onClick={async () => {
               const updated = await fetch(`/api/bail/${token}`).then((r) => r.json());
@@ -534,9 +545,17 @@ export default function TenantFormPage() {
           <div>
             <p className="text-xs text-gray-400 uppercase tracking-wide">Étape 2 / 2 — Lecture et signature du bail</p>
             <p className="text-sm font-medium text-gray-800">
-              ✅ Acte de cautionnement signé — Lisez attentivement le contrat ci-dessous
+              {bail.pasDeGarant ? "Lisez attentivement le contrat ci-dessous" : "✅ Acte de cautionnement signé — Lisez attentivement le contrat ci-dessous"}
             </p>
           </div>
+          <a
+            href={`/bail/${token}/view`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm border border-gray-200 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            🖨️ Télécharger en PDF
+          </a>
         </div>
       </div>
 

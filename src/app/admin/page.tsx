@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSession, signOut } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 
@@ -25,7 +25,17 @@ type InventaireListItem = {
   etatsDesLieux: { id: number; type: string; status: string; date: string | null }[];
 };
 
-type Tab = "appartements" | "echanges";
+type LocataireItem = {
+  id: number; token: string; status: string; archived: boolean;
+  prenomNom: string | null; mailLocataire: string | null; emailInvitation: string | null;
+  tel: string | null; dateDebut: string | null; adresseLocataire: string | null;
+  appartement: { id: number; titre: string; adresse: string | null; ville: string | null; etage: number | null };
+  inventaireId: number | null;
+  edlEntree: { id: number; status: string } | null;
+  edlSortie: { id: number; status: string } | null;
+};
+
+type Tab = "appartements" | "locataires" | "echanges";
 type EchangeSubTab = "baux" | "inventaires";
 
 const STATUS_LABEL: Record<string, { label: string; color: string }> = {
@@ -36,19 +46,28 @@ const STATUS_LABEL: Record<string, { label: string; color: string }> = {
   signed_both:   { label: "Signé ✓",              color: "bg-green-100 text-green-700" },
 };
 
-export default function AdminPage() {
+function AdminPageInner() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [appartements, setAppartements] = useState<Appartement[]>([]);
   const [baux, setBaux] = useState<BailListItem[]>([]);
   const [inventaires, setInventaires] = useState<InventaireListItem[]>([]);
+  const [locataires, setLocataires] = useState<LocataireItem[]>([]);
+  const [showArchived, setShowArchived] = useState(false);
   const [loading, setLoading] = useState(true);
   const [bauxLoading, setBauxLoading] = useState(false);
   const [inventairesLoading, setInventairesLoading] = useState(false);
+  const [locatairesLoading, setLocatairesLoading] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<Tab>("appartements");
-  const [activeSubTab, setActiveSubTab] = useState<EchangeSubTab>("baux");
+  const [activeTab, setActiveTabState] = useState<Tab>((searchParams.get("tab") as Tab) ?? "appartements");
+  const [activeSubTab, setActiveSubTab] = useState<EchangeSubTab>((searchParams.get("sub") as EchangeSubTab) ?? "baux");
+
+  function setActiveTab(tab: Tab) {
+    setActiveTabState(tab);
+    router.replace(`/admin?tab=${tab}`, { scroll: false });
+  }
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/admin/login");
@@ -72,16 +91,42 @@ export default function AdminPage() {
     }
   }, [status, activeTab, activeSubTab, baux.length]);
 
+  // Charger les locataires
+  useEffect(() => {
+    if (status === "authenticated" && activeTab === "locataires" && locataires.length === 0) {
+      setLocatairesLoading(true);
+      fetch("/api/locataires")
+        .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+        .then((data) => { setLocataires(Array.isArray(data) ? data : []); setLocatairesLoading(false); })
+        .catch((err) => { console.error("Locataires fetch error:", err); setLocatairesLoading(false); });
+    }
+  }, [status, activeTab, locataires.length]);
+
   // Charger les inventaires
   useEffect(() => {
     if (status === "authenticated" && activeTab === "echanges" && activeSubTab === "inventaires" && inventaires.length === 0) {
       setInventairesLoading(true);
       fetch("/api/inventaires")
-        .then((r) => r.json())
+        .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
         .then((data) => { setInventaires(Array.isArray(data) ? data : []); setInventairesLoading(false); })
-        .catch(() => setInventairesLoading(false));
+        .catch((err) => { console.error("Inventaires fetch error:", err); setInventairesLoading(false); });
     }
   }, [status, activeTab, activeSubTab, inventaires.length]);
+
+  async function handleArchiveLocataire(id: number, archived: boolean) {
+    await fetch(`/api/baux/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ archived }),
+    });
+    setLocataires((prev) => prev.map((l) => l.id === id ? { ...l, archived } : l));
+  }
+
+  async function handleDeleteLocataire(id: number) {
+    if (!confirm("Supprimer définitivement ce locataire ? Cette action est irréversible.")) return;
+    await fetch(`/api/baux/${id}`, { method: "DELETE" });
+    setLocataires((prev) => prev.filter((l) => l.id !== id));
+  }
 
   async function handleDelete(id: number) {
     if (!confirm("Supprimer cet appartement ?")) return;
@@ -131,6 +176,7 @@ export default function AdminPage() {
           <nav className="flex gap-1 overflow-x-auto">
             {([
               { id: "appartements", label: "Appartements", icon: "🏠" },
+              { id: "locataires",   label: "Locataires",   icon: "👤" },
               { id: "echanges",     label: "Échanges de documents", icon: "📋" },
             ] as { id: Tab; label: string; icon: string }[]).map((tab) => (
               <button
@@ -259,6 +305,131 @@ export default function AdminPage() {
             )}
           </>
         )}
+
+        {/* ══ Onglet Locataires ══ */}
+        {activeTab === "locataires" && (() => {
+          const EDL_BADGE: Record<string, { label: string; bg: string; text: string }> = {
+            draft:          { label: "Brouillon",    bg: "bg-gray-100",  text: "text-gray-500" },
+            signed_bailleur:{ label: "En attente",   bg: "bg-blue-50",   text: "text-blue-600" },
+            signed_both:    { label: "Signé",        bg: "bg-green-50",  text: "text-green-700" },
+          };
+          const visibles = locataires.filter((l) => showArchived ? l.archived : !l.archived);
+          return (
+            <>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold text-gray-900">
+                  Locataires <span className="text-gray-400 font-normal text-base ml-1">({locataires.filter((l) => !l.archived).length})</span>
+                </h2>
+                <div className="flex items-center gap-3">
+                  {locataires.some((l) => l.archived) && (
+                    <button onClick={() => setShowArchived((v) => !v)} className="text-sm text-gray-400 hover:text-gray-600 transition-colors">
+                      {showArchived ? "← Actifs" : `Archivés (${locataires.filter((l) => l.archived).length})`}
+                    </button>
+                  )}
+                  <Link
+                    href="/admin/locataires/new"
+                    className="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors"
+                  >
+                    + Ajouter
+                  </Link>
+                </div>
+              </div>
+
+              {locatairesLoading ? (
+                <div className="text-center py-20 text-gray-400">Chargement…</div>
+              ) : visibles.length === 0 ? (
+                <div className="text-center py-20 text-gray-400">
+                  <p className="text-4xl mb-3">👤</p>
+                  <p>Aucun locataire.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {visibles.map((loc) => {
+                    const email = loc.mailLocataire ?? loc.emailInvitation ?? null;
+                    const st = STATUS_LABEL[loc.status] ?? { label: loc.status, color: "bg-gray-100 text-gray-600" };
+                    const initials = loc.prenomNom
+                      ? loc.prenomNom.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()
+                      : "?";
+                    return (
+                      <div key={loc.id} className={`bg-white rounded-xl border border-gray-200 hover:shadow-sm transition-shadow ${loc.archived ? "opacity-50" : ""}`}>
+                        {/* Corps principal */}
+                        <div className="p-4 flex items-center gap-4">
+                          {/* Avatar initiales */}
+                          <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-sm font-semibold text-gray-500 flex-shrink-0">
+                            {initials}
+                          </div>
+
+                          {/* Infos principales */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-medium text-gray-900 text-sm">
+                                {loc.prenomNom ?? <span className="text-gray-400 font-normal italic">Nom non renseigné</span>}
+                              </span>
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${st.color}`}>{st.label}</span>
+                            </div>
+                            <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                              {email && <span className="text-xs text-gray-400">{email}</span>}
+                              {loc.tel && <span className="text-xs text-gray-400">{loc.tel}</span>}
+                            </div>
+                            <div className="flex items-center gap-2 mt-1 flex-wrap">
+                              <span className="text-xs text-gray-500 font-medium">{loc.appartement.titre}</span>
+                              {loc.appartement.etage !== null && (
+                                <span className="text-xs text-gray-400">{loc.appartement.etage === 0 ? "RDC" : `${loc.appartement.etage}e ét.`}</span>
+                              )}
+                              {loc.dateDebut && (
+                                <span className="text-xs text-gray-400">· depuis {new Date(loc.dateDebut).toLocaleDateString("fr-FR", { month: "short", year: "numeric" })}</span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* EDL badges */}
+                          <div className="hidden sm:flex flex-col gap-1.5 items-end flex-shrink-0">
+                            {loc.edlEntree ? (
+                              <Link href={`/admin/edl/${loc.edlEntree.id}`} className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-medium ${EDL_BADGE[loc.edlEntree.status]?.bg} ${EDL_BADGE[loc.edlEntree.status]?.text} hover:opacity-80 transition-opacity`}>
+                                🔑 {EDL_BADGE[loc.edlEntree.status]?.label ?? "Entrée"}
+                              </Link>
+                            ) : loc.inventaireId ? (
+                              <Link href={`/admin/edl/new?appartementId=${loc.appartement.id}&type=entree`} className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-gray-50 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
+                                🔑 + Entrée
+                              </Link>
+                            ) : null}
+                            {loc.edlSortie ? (
+                              <Link href={`/admin/edl/${loc.edlSortie.id}`} className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-medium ${EDL_BADGE[loc.edlSortie.status]?.bg} ${EDL_BADGE[loc.edlSortie.status]?.text} hover:opacity-80 transition-opacity`}>
+                                🚪 {EDL_BADGE[loc.edlSortie.status]?.label ?? "Sortie"}
+                              </Link>
+                            ) : loc.inventaireId ? (
+                              <Link href={`/admin/edl/new?appartementId=${loc.appartement.id}&type=sortie`} className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-gray-50 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
+                                🚪 + Sortie
+                              </Link>
+                            ) : null}
+                          </div>
+
+                        </div>
+
+                        {/* Pied de carte : actions discrètes */}
+                        <div className="px-4 pb-3 flex items-center gap-4">
+                          <Link href={`/admin/locataires/${loc.id}`} className="text-xs text-gray-400 hover:text-gray-700 transition-colors font-medium">Éditer</Link>
+                          <button
+                            onClick={() => handleArchiveLocataire(loc.id, !loc.archived)}
+                            className="text-xs text-gray-400 hover:text-gray-700 transition-colors"
+                          >
+                            {loc.archived ? "Désarchiver" : "Archiver"}
+                          </button>
+                          <button
+                            onClick={() => handleDeleteLocataire(loc.id)}
+                            className="text-xs text-gray-400 hover:text-red-600 transition-colors ml-auto"
+                          >
+                            Supprimer
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          );
+        })()}
 
         {/* ══ Onglet Échanges de documents ══ */}
         {activeTab === "echanges" && (
@@ -430,5 +601,13 @@ export default function AdminPage() {
 
       </main>
     </div>
+  );
+}
+
+export default function AdminPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-gray-400">Chargement…</div>}>
+      <AdminPageInner />
+    </Suspense>
   );
 }

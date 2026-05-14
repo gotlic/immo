@@ -22,11 +22,29 @@ function NewEdlForm() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (appartementId) {
-      fetch(`/api/inventaire/${appartementId}`)
-        .then((r) => r.json())
-        .then(setInventaire);
-    }
+    if (!appartementId) return;
+
+    // Charger l'inventaire
+    fetch(`/api/inventaire/${appartementId}`)
+      .then((r) => r.json())
+      .then(setInventaire);
+
+    // Auto-remplir depuis le dernier bail signé
+    fetch(`/api/baux?appartementId=${appartementId}`)
+      .then((r) => r.json())
+      .then((baux: { prenomNom?: string | null; mailLocataire?: string | null; emailInvitation?: string | null; status: string }[]) => {
+        if (!Array.isArray(baux) || baux.length === 0) return;
+        // Prendre le bail le plus avancé (signé > en cours)
+        const sorted = [...baux].sort((a, b) => {
+          const order = ["signed_both", "signed_tenant", "caution_signed", "info_submitted", "pending"];
+          return order.indexOf(a.status) - order.indexOf(b.status);
+        });
+        const best = sorted[0];
+        if (best.prenomNom) setLocataireNom(best.prenomNom);
+        const email = best.mailLocataire ?? best.emailInvitation ?? "";
+        if (email) setLocataireEmail(email);
+      })
+      .catch(() => {/* silencieux */});
   }, [appartementId]);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -45,9 +63,12 @@ function NewEdlForm() {
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-30">
-        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center gap-4">
-          <Link href="/admin" className="text-sm text-gray-400 hover:text-gray-700">← Retour</Link>
-          <h1 className="text-lg font-semibold text-gray-900">Nouvel état des lieux</h1>
+        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center gap-3">
+          <Link href="/admin" className="text-sm text-gray-400 hover:text-gray-700 font-medium">Back office</Link>
+          <span className="text-gray-300">/</span>
+          <button onClick={() => router.back()} className="text-sm text-gray-400 hover:text-gray-700">← Retour</button>
+          <span className="text-gray-300 hidden sm:inline">/</span>
+          <h1 className="text-base font-semibold text-gray-900 hidden sm:inline">Nouvel état des lieux</h1>
         </div>
       </header>
       <main className="max-w-3xl mx-auto px-4 py-8">

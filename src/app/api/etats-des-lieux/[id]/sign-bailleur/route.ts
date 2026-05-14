@@ -20,6 +20,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       status: "signed_bailleur",
       updatedAt: new Date(),
     },
+    include: { inventaire: { include: { appartement: true } } },
   });
   return NextResponse.json(edl);
 }

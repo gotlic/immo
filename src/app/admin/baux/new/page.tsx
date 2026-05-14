@@ -7,6 +7,15 @@ import Link from "next/link";
 import { isValidEmail } from "@/lib/validators";
 
 type Appartement = { id: number; titre: string; loyer: number; montantCharges: number | null; etage: number | null; nbPieces: number };
+type ExistingTenant = {
+  id: number;
+  mailLocataire: string | null; emailInvitation: string | null; prenomNom: string | null;
+  tel: string | null; dateNaissance: string | null; villeNaissance: string | null;
+  departementNaissance: string | null; adresseLocataire: string | null;
+  garantCivilite: string | null; garantPrenomNom: string | null;
+  garantDateNaissance: string | null; garantAdresse: string | null; garantEmail: string | null;
+  pasDeGarant: boolean;
+};
 
 /* ── Rappel encadrement des loyers ──────────────────────────────────────── */
 function RappelEncadrement({ anneeArrete, fetchedAt }: { anneeArrete: number | null; fetchedAt: string | null }) {
@@ -95,6 +104,14 @@ function NewBailForm() {
   const [error, setError] = useState("");
   const [tenantUrl, setTenantUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [existingTenants, setExistingTenants] = useState<ExistingTenant[]>([]);
+  const [emailMode, setEmailMode] = useState<"select" | "manual">("select");
+  const [emailSentDirectly, setEmailSentDirectly] = useState(false);
+
+  // Locataire existant sélectionné dans la liste
+  const selectedTenant = emailMode === "select" && emailInvitation
+    ? existingTenants.find((t) => (t.mailLocataire ?? t.emailInvitation) === emailInvitation) ?? null
+    : null;
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/admin/login");
@@ -110,9 +127,18 @@ function NewBailForm() {
 
   useEffect(() => {
     if (status === "authenticated") {
-      fetch("/api/appartements")
+      fetch("/api/appartements").then((r) => r.json()).then(setAppartements);
+      fetch("/api/baux")
         .then((r) => r.json())
-        .then(setAppartements);
+        .then((baux: ExistingTenant[]) => {
+          const seen = new Set<string>();
+          const unique = baux.filter((b) => {
+            const mail = b.mailLocataire ?? b.emailInvitation;
+            if (!mail || seen.has(mail)) return false;
+            seen.add(mail); return true;
+          });
+          setExistingTenants(unique);
+        });
     }
   }, [status]);
 
@@ -161,18 +187,50 @@ function NewBailForm() {
     setSaving(true);
     setError("");
     try {
+      // Si locataire existant sélectionné : on inclut toutes ses infos connues
+      const body = selectedTenant
+        ? {
+            appartementId, dateDebut, irlTrimestre, irlValeur, loyerReference, loyerReferenceMaj,
+            pasDeGarant: selectedTenant.pasDeGarant,
+            mailLocataire: selectedTenant.mailLocataire ?? selectedTenant.emailInvitation,
+            emailInvitation: selectedTenant.mailLocataire ?? selectedTenant.emailInvitation,
+            prenomNom: selectedTenant.prenomNom,
+            tel: selectedTenant.tel,
+            dateNaissance: selectedTenant.dateNaissance,
+            villeNaissance: selectedTenant.villeNaissance,
+            departementNaissance: selectedTenant.departementNaissance,
+            adresseLocataire: selectedTenant.adresseLocataire,
+            garantCivilite: selectedTenant.garantCivilite,
+            garantPrenomNom: selectedTenant.garantPrenomNom,
+            garantDateNaissance: selectedTenant.garantDateNaissance,
+            garantAdresse: selectedTenant.garantAdresse,
+            garantEmail: selectedTenant.garantEmail,
+          }
+        : { appartementId, emailInvitation, dateDebut, irlTrimestre, irlValeur, loyerReference, loyerReferenceMaj, pasDeGarant };
+
       const res = await fetch("/api/baux", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ appartementId, emailInvitation, dateDebut, irlTrimestre, irlValeur, loyerReference, loyerReferenceMaj, pasDeGarant }),
+        body: JSON.stringify(body),
       });
       const bail = await res.json();
       if (!res.ok) throw new Error(bail.error ?? "Erreur serveur");
-      // Persister les valeurs d'encadrement comme nouvelles valeurs par défaut
+
       localStorage.setItem("encadrement_loyerReference", loyerReference);
       localStorage.setItem("encadrement_loyerReferenceMaj", loyerReferenceMaj);
+
       const url = `${window.location.origin}/bail/${bail.token}`;
       setTenantUrl(url);
+
+      if (selectedTenant) {
+        // Locataire existant → bail pré-rempli, envoi garant + locataire
+        await fetch(`/api/baux/${bail.id}/send-to-tenant`, { method: "POST" });
+        setEmailSentDirectly(true);
+      } else if (emailInvitation) {
+        // Nouveau locataire → invitation à remplir le formulaire
+        await fetch(`/api/baux/${bail.id}/invite-tenant`, { method: "POST" });
+        setEmailSentDirectly(true);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur inattendue");
       setSaving(false);
@@ -186,71 +244,74 @@ function NewBailForm() {
     setTimeout(() => setCopied(false), 2000);
   }
 
-  function openGmail() {
-    if (!tenantUrl) return;
-    const appart = appartements.find((a) => String(a.id) === appartementId);
-    const titreAppart = appart?.titre ?? "votre logement";
-    const subject = encodeURIComponent(`Contrat de location — ${titreAppart}`);
-    const body = encodeURIComponent(
-      `Bonjour,\n\nSuite à notre échange, veuillez cliquer sur le lien ci-dessous pour renseigner vos informations et signer électroniquement votre contrat de location :\n\n${tenantUrl}\n\nCe formulaire vous permettra :\n- De renseigner vos coordonnées et celles de votre garant\n- De lire l'intégralité du contrat de location\n- De le signer électroniquement\n\nN'hésitez pas à me contacter pour toute question.\n\nCordialement,\nGautier Lictevout\n06 83 97 48 72`
-    );
-    const to = encodeURIComponent(emailInvitation);
-    const gmailUrl = `https://mail.google.com/mail/?view=cm${emailInvitation ? `&to=${to}` : ""}&su=${subject}&body=${body}`;
-    window.open(gmailUrl, "_blank", "noopener,noreferrer");
-  }
-
-  if (status === "loading") return <div className="min-h-screen flex items-center justify-center text-gray-400">Chargement…</div>;
+if (status === "loading") return <div className="min-h-screen flex items-center justify-center text-gray-400">Chargement…</div>;
 
   /* ── ÉCRAN DE SUCCÈS ── */
   if (tenantUrl) {
+    const recipientLabel = selectedTenant?.prenomNom
+      ? `${selectedTenant.prenomNom} (${emailInvitation})`
+      : emailInvitation || "—";
+
     return (
       <div className="min-h-screen bg-gray-50">
         <header className="bg-white border-b border-gray-200 shadow-sm">
           <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-3">
-            <Link href="/admin" className="text-sm text-gray-500 hover:text-gray-800">← Retour</Link>
+            <Link href="/admin" className="text-sm text-gray-400 hover:text-gray-700 font-medium">Back office</Link>
+            <span className="text-gray-300">/</span>
+            <button onClick={() => router.back()} className="text-sm text-gray-400 hover:text-gray-700">← Retour</button>
             <span className="text-gray-300">|</span>
             <h1 className="text-sm font-medium text-gray-700">Bail créé ✓</h1>
           </div>
         </header>
         <main className="max-w-2xl mx-auto px-4 py-10 space-y-4">
 
-          {/* URL */}
-          <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-4">
-            <h2 className="font-semibold text-gray-900">Lien à envoyer au locataire</h2>
-            <p className="text-sm text-gray-500">
-              Ce lien unique permet au locataire de lire le contrat et de le signer électroniquement.
-            </p>
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 font-mono text-sm text-gray-700 break-all select-all">
-              {tenantUrl}
+          <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-5">
+            {/* Confirmation */}
+            <div className="flex items-start gap-4">
+              <span className="text-3xl mt-0.5">✅</span>
+              <div>
+                <h2 className="font-semibold text-gray-900">
+                  {emailSentDirectly ? "Email envoyé" : "Bail créé"}
+                </h2>
+                {emailInvitation && (
+                  <p className="text-sm text-gray-500 mt-0.5">{recipientLabel}</p>
+                )}
+              </div>
             </div>
-            <div className="flex flex-col sm:flex-row gap-3">
+
+            {/* Détail selon le type */}
+            {emailSentDirectly && (
+              <div className="bg-gray-50 rounded-lg px-4 py-3 text-sm text-gray-600 space-y-1">
+                {selectedTenant ? (
+                  selectedTenant.pasDeGarant ? (
+                    <p>✉️ Le locataire a reçu le bail pré-rempli et peut le signer directement.</p>
+                  ) : (
+                    <>
+                      <p>✉️ Le <strong>garant</strong> ({selectedTenant.garantPrenomNom ?? "garant"}) a reçu l&apos;acte de cautionnement à signer.</p>
+                      <p>✉️ Le <strong>locataire</strong> recevra un email dès que le garant aura signé.</p>
+                    </>
+                  )
+                ) : (
+                  <p>✉️ Le locataire a reçu un email avec le bouton pour remplir et signer le bail.</p>
+                )}
+              </div>
+            )}
+
+            {/* Lien + copie */}
+            <div className="space-y-2">
+              <p className="text-xs text-gray-400">Lien du bail</p>
+              <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 font-mono text-xs text-gray-600 break-all select-all">
+                {tenantUrl}
+              </div>
               <button
                 onClick={copyLink}
-                className="flex-1 border border-gray-300 text-gray-700 px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+                className="text-sm border border-gray-200 text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors"
               >
                 {copied ? "✓ Copié !" : "📋 Copier le lien"}
               </button>
-              <button
-                onClick={openGmail}
-                className="flex-1 flex items-center justify-center gap-2 bg-red-600 hover:bg-red-500 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors"
-              >
-                {/* Google "M" icon */}
-                <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
-                </svg>
-                Préparer l&apos;email dans Gmail
-              </button>
             </div>
-            {emailInvitation && (
-              <p className="text-xs text-gray-400">
-                Email pré-rempli pour&nbsp;: <strong>{emailInvitation}</strong>
-              </p>
-            )}
           </div>
 
-          <p className="text-xs text-center text-gray-400">
-            Gmail s&apos;ouvrira dans un nouvel onglet avec le message pré-rédigé. Vous pourrez le vérifier avant d&apos;envoyer.
-          </p>
         </main>
       </div>
     );
@@ -261,7 +322,7 @@ function NewBailForm() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-200 shadow-sm">
         <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-3">
-          <Link href="/admin" className="text-sm text-gray-500 hover:text-gray-800">← Retour</Link>
+          <Link href="/admin" className="text-sm text-gray-400 hover:text-gray-700 font-medium">Back office</Link><span className="text-gray-300">/</span><button onClick={() => router.back()} className="text-sm text-gray-400 hover:text-gray-700">← Retour</button>
           <span className="text-gray-300">|</span>
           <h1 className="text-sm font-medium text-gray-700">Nouveau bail</h1>
         </div>
@@ -284,17 +345,58 @@ function NewBailForm() {
             </div>
             <div>
               <label className="label">Email du locataire</label>
-              <input
-                type="email"
-                value={emailInvitation}
-                onChange={(e) => setEmailInvitation(e.target.value)}
-                className={`input ${emailInvitation && !isValidEmail(emailInvitation) ? "border-red-400 focus:ring-red-400" : ""}`}
-                placeholder="locataire@email.fr"
-              />
+              {emailMode === "select" ? (
+                <select
+                  value={emailInvitation}
+                  onChange={(e) => {
+                    if (e.target.value === "__manual__") {
+                      setEmailMode("manual");
+                      setEmailInvitation("");
+                    } else {
+                      setEmailInvitation(e.target.value);
+                    }
+                  }}
+                  className="input"
+                >
+                  <option value="">— Sélectionner un locataire existant —</option>
+                  {[...existingTenants]
+                    .sort((a, b) => (a.prenomNom ?? "").localeCompare(b.prenomNom ?? "", "fr"))
+                    .map((t) => {
+                      const mail = t.mailLocataire ?? t.emailInvitation ?? "";
+                      const label = t.prenomNom ? `${mail} (${t.prenomNom})` : mail;
+                      return <option key={mail} value={mail}>{label}</option>;
+                    })}
+                  <option value="__manual__">✏️ Saisir un nouvel email…</option>
+                </select>
+              ) : (
+                <div className="flex gap-2">
+                  <input
+                    type="email"
+                    value={emailInvitation}
+                    onChange={(e) => setEmailInvitation(e.target.value)}
+                    className={`input flex-1 ${emailInvitation && !isValidEmail(emailInvitation) ? "border-red-400" : ""}`}
+                    placeholder="locataire@email.fr"
+                    autoFocus
+                  />
+                  <button type="button" onClick={() => { setEmailMode("select"); setEmailInvitation(""); }}
+                    className="text-xs border border-gray-200 px-3 rounded-lg text-gray-500 hover:bg-gray-50">
+                    ← Liste
+                  </button>
+                </div>
+              )}
               {emailInvitation && !isValidEmail(emailInvitation) && (
                 <p className="text-xs text-red-500 mt-1">Format d'email invalide</p>
               )}
-              <p className="text-xs text-gray-400 mt-1">Utilisé pour pré-remplir l'email Gmail après création.</p>
+              {selectedTenant ? (
+                <div className="mt-2 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 text-xs text-blue-700">
+                  ✅ Locataire connu — le bail sera pré-rempli et l&apos;email envoyé directement pour signature.
+                  {!selectedTenant.pasDeGarant && selectedTenant.garantPrenomNom && (
+                    <span> Le garant (<strong>{selectedTenant.garantPrenomNom}</strong>) recevra aussi son acte de cautionnement.</span>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400 mt-1">Utilisé pour pré-remplir l&apos;email Gmail après création.</p>
+              )}
             </div>
           </section>
 
@@ -396,7 +498,9 @@ function NewBailForm() {
 
           <button type="submit" disabled={saving}
             className="w-full sm:w-auto bg-gray-900 text-white px-8 py-3 rounded-lg font-medium hover:bg-gray-700 transition-colors disabled:opacity-50">
-            {saving ? "Création…" : "Envoyer le mail au locataire"}
+            {saving
+              ? (selectedTenant ? "Envoi en cours…" : "Création…")
+              : (selectedTenant ? "✉️ Envoyer le bail directement" : "Créer et envoyer le lien")}
           </button>
         </form>
       </main>

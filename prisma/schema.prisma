@@ -180,6 +180,7 @@ model Bail {
 
   status           String       @default("pending")
   // pending → info_submitted → caution_signed → signed_tenant → signed_both
+  archived         Boolean      @default(false)
   createdAt        DateTime     @default(now())
 
   signatureOtps    SignatureOtp[]

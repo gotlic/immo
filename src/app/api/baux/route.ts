@@ -4,11 +4,15 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { randomUUID } from "crypto";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
+  const { searchParams } = new URL(req.url);
+  const appartementId = searchParams.get("appartementId");
+
   const baux = await prisma.bail.findMany({
+    where: appartementId ? { appartementId: parseInt(appartementId) } : undefined,
     include: { appartement: { select: { titre: true, ville: true } } },
     orderBy: { createdAt: "desc" },
   });
@@ -39,6 +43,21 @@ export async function POST(req: NextRequest) {
         loyerReference: data.loyerReference || null,
         loyerReferenceMaj: data.loyerReferenceMaj || null,
         pasDeGarant: data.pasDeGarant === true,
+        status: data.status || "pending",
+        // Infos locataire remplies manuellement
+        prenomNom: data.prenomNom || null,
+        mailLocataire: data.mailLocataire || null,
+        tel: data.tel || null,
+        adresseLocataire: data.adresseLocataire || null,
+        dateNaissance: data.dateNaissance || null,
+        villeNaissance: data.villeNaissance || null,
+        departementNaissance: data.departementNaissance || null,
+        // Garant
+        garantCivilite: data.garantCivilite || null,
+        garantPrenomNom: data.garantPrenomNom || null,
+        garantDateNaissance: data.garantDateNaissance || null,
+        garantAdresse: data.garantAdresse || null,
+        garantEmail: data.garantEmail || null,
       },
     });
 

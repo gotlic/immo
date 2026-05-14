@@ -11,7 +11,10 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const id = parseInt(appartementId);
   if (isNaN(id)) return NextResponse.json({ error: "ID invalide" }, { status: 400 });
 
-  const inventaire = await prisma.inventaire.findUnique({ where: { appartementId: id } });
+  const inventaire = await prisma.inventaire.findUnique({
+    where: { appartementId: id },
+    include: { appartement: true },
+  });
   if (!inventaire) return NextResponse.json(null);
 
   return NextResponse.json({

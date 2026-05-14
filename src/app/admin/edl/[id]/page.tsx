@@ -149,9 +149,12 @@ export default function EdlAdminPage({ params }: { params: Promise<{ id: string 
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-30">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <Link href="/admin" className="text-sm text-gray-400 hover:text-gray-700">← Retour</Link>
-            <div>
+          <div className="flex items-center gap-3">
+            <Link href="/admin" className="text-sm text-gray-400 hover:text-gray-700 font-medium">Back office</Link>
+            <span className="text-gray-300">/</span>
+            <button onClick={() => router.back()} className="text-sm text-gray-400 hover:text-gray-700">← Retour</button>
+            <span className="text-gray-300 hidden sm:inline">/</span>
+            <div className="hidden sm:block">
               <h1 className="text-base font-semibold text-gray-900">
                 État des lieux {isEntree ? "d'entrée 🔑" : "de sortie 🚪"}
               </h1>
@@ -213,6 +216,7 @@ export default function EdlAdminPage({ params }: { params: Promise<{ id: string 
                     </td>
                     <td className="px-2 py-2">
                       <input
+                        list="etats-list"
                         type="text" value={l.etatEntree}
                         onChange={(e) => updateLigne(idx, "etatEntree", e.target.value)}
                         className="w-full border border-gray-200 rounded px-2 py-0.5 text-sm focus:outline-none focus:border-gray-400"
@@ -229,6 +233,7 @@ export default function EdlAdminPage({ params }: { params: Promise<{ id: string 
                       </td>
                       <td className="px-2 py-2">
                         <input
+                          list="etats-list"
                           type="text" value={l.etatSortie}
                           onChange={(e) => updateLigne(idx, "etatSortie", e.target.value)}
                           className={`w-full border rounded px-2 py-0.5 text-sm focus:outline-none focus:border-gray-400 ${
@@ -392,6 +397,21 @@ export default function EdlAdminPage({ params }: { params: Promise<{ id: string 
         </section>
 
       </main>
+
+      {/* Datalist états */}
+      <datalist id="etats-list">
+        <option value="Neuf" />
+        <option value="Très bon état" />
+        <option value="Bon état" />
+        <option value="État correct" />
+        <option value="Usagé" />
+        <option value="Usure normale" />
+        <option value="Abîmé" />
+        <option value="Dégradé" />
+        <option value="Manquant" />
+        <option value="À remplacer" />
+        <option value="Non vérifié" />
+      </datalist>
 
       {/* Modal signature bailleur */}
       {showSignature && (

@@ -39,6 +39,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       status: "signed_both",
       updatedAt: new Date(),
     },
+    include: { inventaire: { include: { appartement: true } } },
   });
 
   // Envoyer confirmation au locataire

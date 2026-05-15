@@ -2,6 +2,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
 const DPE_COLORS: Record<string, string> = {
   A: "bg-green-600",
   B: "bg-green-400",

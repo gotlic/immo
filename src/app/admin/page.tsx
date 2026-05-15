@@ -179,6 +179,22 @@ function AdminPageInner() {
     setLocataires((prev) => prev.filter((l) => l.id !== id));
   }
 
+  function calculerProrata(dateDebut: string | null, loyer: number, charges: number, mois: string): { loyerHC: number; charges: number; estProrata: boolean } {
+    if (!dateDebut) return { loyerHC: loyer, charges, estProrata: false };
+    const parts = dateDebut.split("-");
+    if (parts.length < 3) return { loyerHC: loyer, charges, estProrata: false };
+    const yr = parseInt(parts[0]), mo = parseInt(parts[1]), day = parseInt(parts[2]);
+    const moisDebut = `${yr}-${String(mo).padStart(2, "0")}`;
+    if (mois !== moisDebut || day <= 1) return { loyerHC: loyer, charges, estProrata: false };
+    const daysInMonth = new Date(yr, mo, 0).getDate();
+    const ratio = (daysInMonth - day + 1) / daysInMonth;
+    return {
+      loyerHC: Math.round(loyer * ratio * 100) / 100,
+      charges: Math.round(charges * ratio * 100) / 100,
+      estProrata: true,
+    };
+  }
+
   function generateMoisDisponibles(dateDebut: string | null): string[] {
     if (!dateDebut) return [];
     const parts = dateDebut.split("-");
@@ -646,17 +662,21 @@ function AdminPageInner() {
                             .filter((mois) => filtreAnnee === "all" || mois.startsWith(filtreAnnee))
                             .map((mois) => {
                               const p = paiements.find((p) => p.bailId === l.id && p.mois === mois);
-                              const loyerHC = p?.loyerHC ?? l.appartement.loyer ?? 0;
-                              const charges = p?.chargesMois ?? l.appartement.montantCharges ?? 0;
+                              const loyerAppart = l.appartement.loyer ?? 0;
+                              const chargesAppart = l.appartement.montantCharges ?? 0;
+                              const proration = !p ? calculerProrata(l.dateDebut, loyerAppart, chargesAppart, mois) : null;
+                              const loyerHC = p?.loyerHC ?? proration?.loyerHC ?? loyerAppart;
+                              const charges = p?.chargesMois ?? proration?.charges ?? chargesAppart;
+                              const estProrata = !p && (proration?.estProrata ?? false);
                               const total = loyerHC + charges;
                               const statut = p?.statut ?? "attendu";
                               const isEditing = editingLoyerRow?.bailId === l.id && editingLoyerRow?.mois === mois;
                               const moisLabel = new Date(mois + "-01").toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
-                              return { l, mois, moisLabel, p, loyerHC, charges, total, statut, isEditing };
+                              return { l, mois, moisLabel, p, loyerHC, charges, total, statut, isEditing, estProrata };
                             })
                         )
                         .sort((a, b) => b.mois.localeCompare(a.mois))
-                        .map(({ l, mois, moisLabel, p, loyerHC, charges, total, statut, isEditing }) =>
+                        .map(({ l, mois, moisLabel, p, loyerHC, charges, total, statut, isEditing, estProrata }) =>
                           isEditing ? (
                             <tr key={`${l.id}-${mois}`} className="bg-blue-50">
                               <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">{moisLabel}</td>
@@ -705,8 +725,14 @@ function AdminPageInner() {
                               <td className="px-3 py-2.5 text-sm font-medium text-gray-900 whitespace-nowrap">{l.prenomNom ?? "—"}</td>
                               <td className="px-3 py-2.5 text-sm text-gray-600 whitespace-nowrap">{l.appartement.titre}</td>
                               <td className="px-3 py-2.5 text-xs text-gray-500">{l.appartement.adresse}</td>
-                              <td className="px-3 py-2.5 text-right text-sm text-gray-700">{loyerHC > 0 ? `${loyerHC.toFixed(2)} €` : "—"}</td>
-                              <td className="px-3 py-2.5 text-right text-sm text-gray-700">{charges > 0 ? `${charges.toFixed(2)} €` : "—"}</td>
+                              <td className="px-3 py-2.5 text-right text-sm text-gray-700">
+                                {loyerHC > 0 ? `${loyerHC.toFixed(2)} €` : "—"}
+                                {estProrata && <div className="text-xs text-blue-500">prorata</div>}
+                              </td>
+                              <td className="px-3 py-2.5 text-right text-sm text-gray-700">
+                                {charges > 0 ? `${charges.toFixed(2)} €` : "—"}
+                                {estProrata && <div className="text-xs text-blue-500">prorata</div>}
+                              </td>
                               <td className="px-3 py-2.5 text-right text-sm font-medium text-gray-900">{total > 0 ? `${total.toFixed(2)} €` : "—"}</td>
                               <td className="px-3 py-2.5 text-center">
                                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statut === "paye" ? "bg-green-100 text-green-700" : statut === "retard" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}>

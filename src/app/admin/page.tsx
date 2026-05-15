@@ -565,6 +565,78 @@ function AdminPageInner() {
               </span>
             </div>
 
+            {/* ── Dépôts de garantie ── */}
+            {!paiementsLoading && !locatairesLoading && locataires.filter((l) => !l.archived && l.status === "signed_both").length > 0 && (
+              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
+                  <h3 className="text-sm font-medium text-gray-700">Dépôts de garantie</h3>
+                </div>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      <th className="text-left px-4 py-2 font-medium text-gray-500 text-xs">Locataire</th>
+                      <th className="text-left px-4 py-2 font-medium text-gray-500 text-xs">Appartement</th>
+                      <th className="text-right px-4 py-2 font-medium text-gray-500 text-xs">Montant (1 mois HC)</th>
+                      <th className="text-center px-4 py-2 font-medium text-gray-500 text-xs">Statut</th>
+                      <th className="text-center px-4 py-2 font-medium text-gray-500 text-xs">Date réception</th>
+                      <th className="text-center px-4 py-2 font-medium text-gray-500 text-xs">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {locataires
+                      .filter((l) => !l.archived && l.status === "signed_both")
+                      .map((l) => {
+                        const pc = paiements.find((p) => p.bailId === l.id && p.mois === "caution");
+                        const statut = pc?.statut ?? "attendu";
+                        const depot = l.appartement.loyer ?? 0;
+                        return (
+                          <tr key={l.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-2.5">
+                              <div className="font-medium text-gray-900">{l.prenomNom ?? "—"}</div>
+                              <div className="text-xs text-gray-400">{l.mailLocataire ?? l.emailInvitation}</div>
+                            </td>
+                            <td className="px-4 py-2.5 text-gray-600 text-xs">{l.appartement.titre}</td>
+                            <td className="px-4 py-2.5 text-right font-medium text-gray-900">
+                              {depot > 0 ? `${depot.toFixed(0)} €` : "—"}
+                            </td>
+                            <td className="px-4 py-2.5 text-center">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                statut === "paye" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
+                              }`}>
+                                {statut === "paye" ? "✓ Reçu" : "En attente"}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2.5 text-center text-gray-500 text-xs">
+                              {pc?.datePaiement ? new Date(pc.datePaiement).toLocaleDateString("fr-FR") : "—"}
+                            </td>
+                            <td className="px-4 py-2.5 text-center">
+                              <div className="flex items-center justify-center gap-1">
+                                {statut !== "paye" && (
+                                  <button
+                                    onClick={() => marquerPaye(l.id, "caution", depot)}
+                                    className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                                  >
+                                    ✓ Reçu
+                                  </button>
+                                )}
+                                {statut === "paye" && (
+                                  <button
+                                    onClick={() => reinitialiserPaiement(l.id, "caution")}
+                                    className="px-2 py-1 text-xs bg-gray-200 text-gray-600 rounded hover:bg-gray-300 transition-colors"
+                                  >
+                                    ↺
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
             {paiementsLoading || locatairesLoading ? (
               <div className="text-center py-8 text-gray-400">Chargement…</div>
             ) : (
@@ -658,12 +730,12 @@ function AdminPageInner() {
             )}
 
             {/* Historique paiements */}
-            {paiements.filter((p) => p.statut === "retard").length > 0 && (
+            {paiements.filter((p) => p.statut === "retard" && p.mois !== "caution").length > 0 && (
               <div className="bg-red-50 border border-red-200 rounded-xl p-4">
                 <h3 className="font-medium text-red-800 mb-2">⚠ Retards de paiement</h3>
                 <ul className="space-y-1">
                   {paiements
-                    .filter((p) => p.statut === "retard")
+                    .filter((p) => p.statut === "retard" && p.mois !== "caution")
                     .map((p) => (
                       <li key={p.id} className="text-sm text-red-700">
                         {p.bail.prenomNom} — {p.mois} — {p.montant.toFixed(0)} €

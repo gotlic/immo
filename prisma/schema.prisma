@@ -184,6 +184,22 @@ model Bail {
   createdAt        DateTime     @default(now())
 
   signatureOtps    SignatureOtp[]
+  paiements        Paiement[]
+}
+
+model Paiement {
+  id           Int      @id @default(autoincrement())
+  bailId       Int
+  bail         Bail     @relation(fields: [bailId], references: [id], onDelete: Cascade)
+  mois         String   // "2026-05" — format YYYY-MM
+  montant      Float
+  statut       String   @default("attendu") // "attendu" | "paye" | "retard"
+  datePaiement String?  // date effective ISO "2026-05-03"
+  note         String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([bailId, mois])
 }
 
 // ─── OTP de signature (réutilisable pour tout document) ───────────────────────

@@ -29,13 +29,30 @@ type LocataireItem = {
   id: number; token: string; status: string; archived: boolean;
   prenomNom: string | null; mailLocataire: string | null; emailInvitation: string | null;
   tel: string | null; dateDebut: string | null; adresseLocataire: string | null;
-  appartement: { id: number; titre: string; adresse: string | null; ville: string | null; etage: number | null };
+  appartement: { id: number; titre: string; adresse: string | null; ville: string | null; etage: number | null; loyer: number; montantCharges: number | null };
   inventaireId: number | null;
   edlEntree: { id: number; status: string } | null;
   edlSortie: { id: number; status: string } | null;
 };
 
-type Tab = "appartements" | "locataires" | "echanges";
+type PaiementItem = {
+  id: number;
+  bailId: number;
+  mois: string;
+  montant: number;
+  statut: string; // "attendu" | "paye" | "retard"
+  datePaiement: string | null;
+  note: string | null;
+  bail: {
+    id: number;
+    prenomNom: string | null;
+    mailLocataire: string | null;
+    dateDebut: string | null;
+    appartement: { id: number; titre: string; loyer: number; montantCharges: number | null };
+  };
+};
+
+type Tab = "appartements" | "locataires" | "paiements" | "echanges";
 type EchangeSubTab = "baux" | "inventaires";
 
 const STATUS_LABEL: Record<string, { label: string; color: string }> = {
@@ -60,6 +77,12 @@ function AdminPageInner() {
   const [bauxLoading, setBauxLoading] = useState(false);
   const [inventairesLoading, setInventairesLoading] = useState(false);
   const [locatairesLoading, setLocatairesLoading] = useState(false);
+  const [paiements, setPaiements] = useState<PaiementItem[]>([]);
+  const [paiementsLoading, setPaiementsLoading] = useState(false);
+  const [moisSelectionne, setMoisSelectionne] = useState<string>(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  });
 
   const [activeTab, setActiveTabState] = useState<Tab>((searchParams.get("tab") as Tab) ?? "appartements");
   const [activeSubTab, setActiveSubTab] = useState<EchangeSubTab>((searchParams.get("sub") as EchangeSubTab) ?? "baux");
@@ -67,6 +90,13 @@ function AdminPageInner() {
   function setActiveTab(tab: Tab) {
     setActiveTabState(tab);
     router.replace(`/admin?tab=${tab}`, { scroll: false });
+    if (tab === "paiements" && locataires.length === 0) {
+      setLocatairesLoading(true);
+      fetch("/api/locataires")
+        .then((r) => r.json())
+        .then((data) => { setLocataires(Array.isArray(data) ? data : []); setLocatairesLoading(false); })
+        .catch(() => setLocatairesLoading(false));
+    }
   }
 
   useEffect(() => {
@@ -102,6 +132,17 @@ function AdminPageInner() {
     }
   }, [status, activeTab, locataires.length]);
 
+  // Charger les paiements
+  useEffect(() => {
+    if (status === "authenticated" && activeTab === "paiements") {
+      setPaiementsLoading(true);
+      fetch("/api/paiements")
+        .then((r) => r.json())
+        .then((data) => { setPaiements(Array.isArray(data) ? data : []); setPaiementsLoading(false); })
+        .catch(() => setPaiementsLoading(false));
+    }
+  }, [status, activeTab]);
+
   // Charger les inventaires
   useEffect(() => {
     if (status === "authenticated" && activeTab === "echanges" && activeSubTab === "inventaires" && inventaires.length === 0) {
@@ -126,6 +167,81 @@ function AdminPageInner() {
     if (!confirm("Supprimer définitivement ce locataire ? Cette action est irréversible.")) return;
     await fetch(`/api/baux/${id}`, { method: "DELETE" });
     setLocataires((prev) => prev.filter((l) => l.id !== id));
+  }
+
+  async function marquerPaye(bailId: number, mois: string, montant: number) {
+    const today = new Date().toISOString().split("T")[0];
+    const existing = paiements.find((p) => p.bailId === bailId && p.mois === mois);
+    if (existing) {
+      const res = await fetch(`/api/paiements/${existing.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ statut: "paye", datePaiement: today }),
+      });
+      const updated = await res.json();
+      setPaiements((prev) => prev.map((p) => p.id === existing.id ? { ...p, ...updated } : p));
+    } else {
+      const res = await fetch("/api/paiements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bailId, mois, montant, statut: "paye", datePaiement: today }),
+      });
+      const created = await res.json();
+      const bail = locataires.find((l) => l.id === bailId);
+      if (bail) {
+        setPaiements((prev) => [...prev, {
+          ...created,
+          bail: {
+            id: bail.id, prenomNom: bail.prenomNom, mailLocataire: bail.mailLocataire,
+            dateDebut: bail.dateDebut,
+            appartement: { id: bail.appartement.id, titre: bail.appartement.titre, loyer: bail.appartement.loyer ?? 0, montantCharges: bail.appartement.montantCharges ?? null },
+          },
+        }]);
+      }
+    }
+  }
+
+  async function marquerRetard(bailId: number, mois: string, montant: number) {
+    const existing = paiements.find((p) => p.bailId === bailId && p.mois === mois);
+    if (existing) {
+      const res = await fetch(`/api/paiements/${existing.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ statut: "retard" }),
+      });
+      const updated = await res.json();
+      setPaiements((prev) => prev.map((p) => p.id === existing.id ? { ...p, ...updated } : p));
+    } else {
+      const res = await fetch("/api/paiements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bailId, mois, montant, statut: "retard" }),
+      });
+      const created = await res.json();
+      const bail = locataires.find((l) => l.id === bailId);
+      if (bail) {
+        setPaiements((prev) => [...prev, {
+          ...created,
+          bail: {
+            id: bail.id, prenomNom: bail.prenomNom, mailLocataire: bail.mailLocataire,
+            dateDebut: bail.dateDebut,
+            appartement: { id: bail.appartement.id, titre: bail.appartement.titre, loyer: bail.appartement.loyer ?? 0, montantCharges: bail.appartement.montantCharges ?? null },
+          },
+        }]);
+      }
+    }
+  }
+
+  async function reinitialiserPaiement(bailId: number, mois: string) {
+    const existing = paiements.find((p) => p.bailId === bailId && p.mois === mois);
+    if (existing) {
+      await fetch(`/api/paiements/${existing.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ statut: "attendu", datePaiement: null }),
+      });
+      setPaiements((prev) => prev.map((p) => p.id === existing.id ? { ...p, statut: "attendu", datePaiement: null } : p));
+    }
   }
 
   async function handleDelete(id: number) {
@@ -177,6 +293,7 @@ function AdminPageInner() {
             {([
               { id: "appartements", label: "Appartements", icon: "🏠" },
               { id: "locataires",   label: "Locataires",   icon: "👤" },
+              { id: "paiements",    label: "Paiements",    icon: "💰" },
               { id: "echanges",     label: "Échanges de documents", icon: "📋" },
             ] as { id: Tab; label: string; icon: string }[]).map((tab) => (
               <button
@@ -430,6 +547,133 @@ function AdminPageInner() {
             </>
           );
         })()}
+
+        {/* ══ Onglet Paiements ══ */}
+        {activeTab === "paiements" && (
+          <div className="space-y-4">
+            {/* Sélecteur de mois */}
+            <div className="flex items-center gap-4 flex-wrap">
+              <label className="text-sm font-medium text-gray-700">Mois :</label>
+              <input
+                type="month"
+                value={moisSelectionne}
+                onChange={(e) => setMoisSelectionne(e.target.value)}
+                className="border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+              <span className="text-sm text-gray-500">
+                {locataires.filter((l) => !l.archived && l.status === "signed_both").length} locataire(s) actif(s)
+              </span>
+            </div>
+
+            {paiementsLoading || locatairesLoading ? (
+              <div className="text-center py-8 text-gray-400">Chargement…</div>
+            ) : (
+              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-200">
+                      <th className="text-left px-4 py-3 font-medium text-gray-600">Locataire</th>
+                      <th className="text-left px-4 py-3 font-medium text-gray-600">Appartement</th>
+                      <th className="text-right px-4 py-3 font-medium text-gray-600">Loyer CC</th>
+                      <th className="text-center px-4 py-3 font-medium text-gray-600">Statut</th>
+                      <th className="text-center px-4 py-3 font-medium text-gray-600">Date paiement</th>
+                      <th className="text-center px-4 py-3 font-medium text-gray-600">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {locataires
+                      .filter((l) => !l.archived && l.status === "signed_both")
+                      .map((l) => {
+                        const p = paiements.find((p) => p.bailId === l.id && p.mois === moisSelectionne);
+                        const statut = p?.statut ?? "attendu";
+                        const loyer = l.appartement.loyer ?? 0;
+                        const charges = l.appartement.montantCharges ?? 0;
+                        const total = loyer + charges;
+                        return (
+                          <tr key={l.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3">
+                              <div className="font-medium text-gray-900">{l.prenomNom ?? "—"}</div>
+                              <div className="text-xs text-gray-400">{l.mailLocataire ?? l.emailInvitation}</div>
+                            </td>
+                            <td className="px-4 py-3 text-gray-600">
+                              <div>{l.appartement.titre}</div>
+                              <div className="text-xs text-gray-400">{l.appartement.ville}</div>
+                            </td>
+                            <td className="px-4 py-3 text-right font-medium text-gray-900">
+                              {total > 0 ? `${total.toFixed(0)} €` : "—"}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                statut === "paye"   ? "bg-green-100 text-green-700" :
+                                statut === "retard" ? "bg-red-100 text-red-700" :
+                                                     "bg-amber-100 text-amber-700"
+                              }`}>
+                                {statut === "paye" ? "✓ Payé" : statut === "retard" ? "⚠ Retard" : "En attente"}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-center text-gray-500 text-xs">
+                              {p?.datePaiement ? new Date(p.datePaiement).toLocaleDateString("fr-FR") : "—"}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <div className="flex items-center justify-center gap-1">
+                                {statut !== "paye" && (
+                                  <button
+                                    onClick={() => marquerPaye(l.id, moisSelectionne, total)}
+                                    className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                                  >
+                                    ✓ Payé
+                                  </button>
+                                )}
+                                {statut !== "retard" && (
+                                  <button
+                                    onClick={() => marquerRetard(l.id, moisSelectionne, total)}
+                                    className="px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
+                                  >
+                                    ⚠ Retard
+                                  </button>
+                                )}
+                                {statut !== "attendu" && (
+                                  <button
+                                    onClick={() => reinitialiserPaiement(l.id, moisSelectionne)}
+                                    className="px-2 py-1 text-xs bg-gray-200 text-gray-600 rounded hover:bg-gray-300 transition-colors"
+                                  >
+                                    ↺
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    {locataires.filter((l) => !l.archived && l.status === "signed_both").length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
+                          Aucun locataire actif (bail signé des deux côtés)
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Historique paiements */}
+            {paiements.filter((p) => p.statut === "retard").length > 0 && (
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                <h3 className="font-medium text-red-800 mb-2">⚠ Retards de paiement</h3>
+                <ul className="space-y-1">
+                  {paiements
+                    .filter((p) => p.statut === "retard")
+                    .map((p) => (
+                      <li key={p.id} className="text-sm text-red-700">
+                        {p.bail.prenomNom} — {p.mois} — {p.montant.toFixed(0)} €
+                      </li>
+                    ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ══ Onglet Échanges de documents ══ */}
         {activeTab === "echanges" && (

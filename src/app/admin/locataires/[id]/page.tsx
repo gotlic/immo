@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useState, use } from "react";
+
 import { useRouter } from "next/navigation";
+
+function toJJMMAAAA(val: string | null | undefined): string {
+  if (!val) return "";
+  const m = val.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+  return val;
+}
 import Link from "next/link";
 
 type Edl = { id: number; type: string; status: string; date: string | null };
@@ -286,7 +294,7 @@ export default function FicheLocatairePage({ params }: { params: Promise<{ id: s
           <Row label="Email" value={email} field="mailLocataire" editing={editing} form={form} onChange={handleChange} />
           <Row label="Téléphone" value={fiche.tel} field="tel" editing={editing} form={form} onChange={handleChange} />
           <Row label="Adresse" value={fiche.adresseLocataire} field="adresseLocataire" editing={editing} form={form} onChange={handleChange} />
-          <Row label="Date de naissance" value={fiche.dateNaissance} field="dateNaissance" editing={editing} form={form} onChange={handleChange} />
+          <Row label="Date de naissance" value={toJJMMAAAA(fiche.dateNaissance)} field="dateNaissance" editing={editing} form={form} onChange={handleChange} />
           <Row label="Ville de naissance" value={fiche.villeNaissance} field="villeNaissance" editing={editing} form={form} onChange={handleChange} />
           <Row label="Dépt. de naissance" value={fiche.departementNaissance} field="departementNaissance" editing={editing} form={form} onChange={handleChange} />
         </Section>
@@ -325,7 +333,7 @@ export default function FicheLocatairePage({ params }: { params: Promise<{ id: s
             <>
               <Row label="Civilité" value={fiche.garantCivilite} field="garantCivilite" editing={editing} form={form} onChange={handleChange} />
               <Row label="Nom complet" value={fiche.garantPrenomNom} field="garantPrenomNom" editing={editing} form={form} onChange={handleChange} />
-              <Row label="Date de naissance" value={fiche.garantDateNaissance} field="garantDateNaissance" editing={editing} form={form} onChange={handleChange} />
+              <Row label="Date de naissance" value={toJJMMAAAA(fiche.garantDateNaissance)} field="garantDateNaissance" editing={editing} form={form} onChange={handleChange} />
               <Row label="Adresse" value={fiche.garantAdresse} field="garantAdresse" editing={editing} form={form} onChange={handleChange} />
               <Row label="Email" value={fiche.garantEmail} field="garantEmail" editing={editing} form={form} onChange={handleChange} />
             </>

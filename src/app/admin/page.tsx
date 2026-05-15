@@ -83,6 +83,7 @@ function AdminPageInner() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   });
+  const [editingRow, setEditingRow] = useState<{ bailId: number; mois: string; montant: string; note: string } | null>(null);
 
   const [activeTab, setActiveTabState] = useState<Tab>((searchParams.get("tab") as Tab) ?? "appartements");
   const [activeSubTab, setActiveSubTab] = useState<EchangeSubTab>((searchParams.get("sub") as EchangeSubTab) ?? "baux");
@@ -230,6 +231,47 @@ function AdminPageInner() {
         }]);
       }
     }
+  }
+
+  function calculerProrata(dateDebut: string | null, loyer: number, charges: number, moisCible: string): { montant: number; estProrata: boolean } {
+    if (!dateDebut) return { montant: loyer + charges, estProrata: false };
+    const [annee, mois, jour] = dateDebut.split("-").map(Number);
+    const [cibleAnnee, cibleMois] = moisCible.split("-").map(Number);
+    if (annee !== cibleAnnee || mois !== cibleMois) return { montant: loyer + charges, estProrata: false };
+    const joursInMonth = new Date(annee, mois, 0).getDate();
+    const joursRestants = joursInMonth - jour + 1;
+    const loyerProrata = Math.round((loyer * joursRestants / joursInMonth) * 100) / 100;
+    return { montant: loyerProrata + charges, estProrata: jour > 1 };
+  }
+
+  async function sauvegarderPaiement(bailId: number, mois: string, montant: number, note: string) {
+    const existing = paiements.find((p) => p.bailId === bailId && p.mois === mois);
+    const bail = locataires.find((l) => l.id === bailId);
+    if (existing) {
+      const res = await fetch(`/api/paiements/${existing.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ montant, note: note || null }),
+      });
+      const updated = await res.json();
+      setPaiements((prev) => prev.map((p) => p.id === existing.id ? { ...p, ...updated } : p));
+    } else if (bail) {
+      const res = await fetch("/api/paiements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bailId, mois, montant, note: note || null, statut: "attendu" }),
+      });
+      const created = await res.json();
+      setPaiements((prev) => [...prev, {
+        ...created,
+        bail: {
+          id: bail.id, prenomNom: bail.prenomNom, mailLocataire: bail.mailLocataire,
+          dateDebut: bail.dateDebut,
+          appartement: { id: bail.appartement.id, titre: bail.appartement.titre, loyer: bail.appartement.loyer, montantCharges: bail.appartement.montantCharges },
+        },
+      }]);
+    }
+    setEditingRow(null);
   }
 
   async function reinitialiserPaiement(bailId: number, mois: string) {
@@ -660,7 +702,57 @@ function AdminPageInner() {
                         const statut = p?.statut ?? "attendu";
                         const loyer = l.appartement.loyer ?? 0;
                         const charges = l.appartement.montantCharges ?? 0;
-                        const total = loyer + charges;
+                        const { montant: montantSuggere, estProrata } = calculerProrata(l.dateDebut, loyer, charges, moisSelectionne);
+                        const montantAffiche = p?.montant ?? montantSuggere;
+                        const isEditing = editingRow?.bailId === l.id && editingRow?.mois === moisSelectionne;
+
+                        if (isEditing) {
+                          return (
+                            <tr key={l.id} className="bg-blue-50">
+                              <td className="px-4 py-3">
+                                <div className="font-medium text-gray-900">{l.prenomNom ?? "—"}</div>
+                                <div className="text-xs text-gray-400">{l.mailLocataire ?? l.emailInvitation}</div>
+                              </td>
+                              <td className="px-4 py-3 text-gray-600 text-sm">{l.appartement.titre}</td>
+                              <td className="px-4 py-3">
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  value={editingRow.montant}
+                                  onChange={(e) => setEditingRow((r) => r ? { ...r, montant: e.target.value } : r)}
+                                  className="w-24 border border-blue-300 rounded px-2 py-1 text-sm text-right focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                />
+                                <span className="text-xs text-gray-500 ml-1">€</span>
+                              </td>
+                              <td className="px-4 py-3" colSpan={2}>
+                                <input
+                                  type="text"
+                                  placeholder="Note (optionnel)"
+                                  value={editingRow.note}
+                                  onChange={(e) => setEditingRow((r) => r ? { ...r, note: e.target.value } : r)}
+                                  className="w-full border border-blue-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                />
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <div className="flex items-center justify-center gap-1">
+                                  <button
+                                    onClick={() => sauvegarderPaiement(l.id, moisSelectionne, parseFloat(editingRow.montant) || 0, editingRow.note)}
+                                    className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                                  >
+                                    ✓ Sauver
+                                  </button>
+                                  <button
+                                    onClick={() => setEditingRow(null)}
+                                    className="px-2 py-1 text-xs bg-gray-200 text-gray-600 rounded hover:bg-gray-300 transition-colors"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        }
+
                         return (
                           <tr key={l.id} className="hover:bg-gray-50">
                             <td className="px-4 py-3">
@@ -671,8 +763,16 @@ function AdminPageInner() {
                               <div>{l.appartement.titre}</div>
                               <div className="text-xs text-gray-400">{l.appartement.ville}</div>
                             </td>
-                            <td className="px-4 py-3 text-right font-medium text-gray-900">
-                              {total > 0 ? `${total.toFixed(0)} €` : "—"}
+                            <td className="px-4 py-3 text-right">
+                              <span className="font-medium text-gray-900">
+                                {montantAffiche > 0 ? `${montantAffiche.toFixed(2)} €` : "—"}
+                              </span>
+                              {estProrata && !p && (
+                                <div className="text-xs text-blue-500 mt-0.5">prorata</div>
+                              )}
+                              {p?.note && (
+                                <div className="text-xs text-gray-400 mt-0.5 max-w-[120px] truncate">{p.note}</div>
+                              )}
                             </td>
                             <td className="px-4 py-3 text-center">
                               <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -690,7 +790,7 @@ function AdminPageInner() {
                               <div className="flex items-center justify-center gap-1">
                                 {statut !== "paye" && (
                                   <button
-                                    onClick={() => marquerPaye(l.id, moisSelectionne, total)}
+                                    onClick={() => marquerPaye(l.id, moisSelectionne, montantAffiche)}
                                     className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
                                   >
                                     ✓ Payé
@@ -698,12 +798,19 @@ function AdminPageInner() {
                                 )}
                                 {statut !== "retard" && (
                                   <button
-                                    onClick={() => marquerRetard(l.id, moisSelectionne, total)}
+                                    onClick={() => marquerRetard(l.id, moisSelectionne, montantAffiche)}
                                     className="px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
                                   >
                                     ⚠ Retard
                                   </button>
                                 )}
+                                <button
+                                  onClick={() => setEditingRow({ bailId: l.id, mois: moisSelectionne, montant: montantAffiche.toFixed(2), note: p?.note ?? "" })}
+                                  className="px-2 py-1 text-xs bg-gray-100 text-gray-500 rounded hover:bg-gray-200 transition-colors"
+                                  title="Modifier le montant"
+                                >
+                                  ✎
+                                </button>
                                 {statut !== "attendu" && (
                                   <button
                                     onClick={() => reinitialiserPaiement(l.id, moisSelectionne)}

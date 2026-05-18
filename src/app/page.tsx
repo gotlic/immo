@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
 export default async function HomePage() {
   const appartements = await prisma.appartement.findMany({
     include: { photos: { orderBy: { ordre: "asc" }, take: 1 } },
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ adresse: "asc" }, { etage: "asc" }],
   });
 
   return (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, notFound } from "next/navigation";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -145,6 +145,21 @@ export default function AppartementPage() {
   const [loading, setLoading] = useState(true);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [inventaireOpen, setInventaireOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  async function handleShare() {
+    const url = window.location.href;
+    const title = appart?.titre ?? "Appartement";
+    if (navigator.share) {
+      try { await navigator.share({ title, url }); } catch { /* annulé */ }
+    } else {
+      await navigator.clipboard.writeText(url);
+      if (copyTimer.current) clearTimeout(copyTimer.current);
+      setCopied(true);
+      copyTimer.current = setTimeout(() => setCopied(false), 2000);
+    }
+  }
 
   useEffect(() => {
     fetch(`/api/appartements/${id}`)
@@ -386,6 +401,25 @@ export default function AppartementPage() {
             >
               <span>📋</span>
               <span>Inventaire du logement</span>
+            </button>
+
+            <button
+              onClick={handleShare}
+              className="flex items-center gap-2 w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              {copied ? (
+                <>
+                  <span>✓</span>
+                  <span className="text-green-600 font-medium">Lien copié !</span>
+                </>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z" />
+                  </svg>
+                  <span>Partager</span>
+                </>
+              )}
             </button>
           </div>
         </div>

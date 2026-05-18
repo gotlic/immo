@@ -197,21 +197,6 @@ export default function AppartementPage() {
           <Link href="/" className="text-sm text-gray-500 hover:text-gray-800 shrink-0">← Retour</Link>
           <span className="text-gray-300 shrink-0">|</span>
           <span className="text-sm font-medium text-gray-700 truncate">{appart.titre}</span>
-          <button
-            onClick={handleShare}
-            title="Partager"
-            className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-colors ${copied ? "bg-green-500" : "bg-gray-800 hover:bg-gray-600"}`}
-          >
-            {copied ? (
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-              </svg>
-            ) : (
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z" />
-              </svg>
-            )}
-          </button>
         </div>
       </header>
 
@@ -219,7 +204,7 @@ export default function AppartementPage() {
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
 
           {/* ── Colonne gauche ── */}
-          <div className="lg:col-span-3 space-y-5">
+          <div className="lg:col-span-3 space-y-5 order-2 lg:order-1">
 
             {/* Galerie */}
             {photos.length > 0 && (
@@ -314,10 +299,27 @@ export default function AppartementPage() {
           </div>
 
           {/* ── Colonne droite ── */}
-          <div className="lg:col-span-2 space-y-4">
+          <div className="lg:col-span-2 space-y-4 order-1 lg:order-2">
             <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
               <div>
-                <h1 className="text-xl font-bold text-gray-900">{appart.titre}</h1>
+                <div className="flex items-start gap-2">
+                  <h1 className="text-xl font-bold text-gray-900 flex-1">{appart.titre}</h1>
+                  <button
+                    onClick={handleShare}
+                    title="Partager"
+                    className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-colors ${copied ? "bg-green-500" : "bg-blue-500 hover:bg-blue-600"}`}
+                  >
+                    {copied ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                      </svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
                 {appart.adresse && <p className="text-sm text-gray-500 mt-0.5">{appart.adresse}</p>}
                 {appart.ville && <p className="text-sm text-gray-500">{appart.ville}</p>}
               </div>

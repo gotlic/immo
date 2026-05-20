@@ -35,6 +35,7 @@ export default function EditAppartementPage() {
   const { id } = useParams<{ id: string }>();
   const [appart, setAppart] = useState<Appartement | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("description");
 
   useEffect(() => {
@@ -44,13 +45,23 @@ export default function EditAppartementPage() {
   useEffect(() => {
     if (status === "authenticated") {
       fetch(`/api/appartements/${id}`)
-        .then((r) => r.json())
-        .then((data) => { setAppart(data); setLoading(false); });
+        .then((r) => { if (!r.ok) throw new Error("Erreur serveur"); return r.json(); })
+        .then((data) => { setAppart(data); setLoading(false); })
+        .catch(() => { setFetchError(true); setLoading(false); });
     }
   }, [status, id]);
 
   if (status === "loading" || loading)
     return <div className="min-h-screen flex items-center justify-center text-gray-400">Chargement…</div>;
+  if (fetchError)
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 text-gray-500">
+        <p className="text-lg">Impossible de charger l&apos;appartement.</p>
+        <button onClick={() => { setFetchError(false); setLoading(true); fetch(`/api/appartements/${id}`).then(r => r.json()).then(d => { setAppart(d); setLoading(false); }).catch(() => { setFetchError(true); setLoading(false); }); }} className="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm hover:bg-gray-700">
+          Réessayer
+        </button>
+      </div>
+    );
   if (!session || !appart) return null;
 
   return (

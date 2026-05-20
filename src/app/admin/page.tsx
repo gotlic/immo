@@ -356,7 +356,7 @@ function AdminPageInner() {
             <nav className="flex gap-1 overflow-x-auto">
               {([
                 { id: "baux",       label: "Baux",        icon: "📝" },
-                { id: "inventaires",label: "Inventaires", icon: "🗂️" },
+                { id: "inventaires",label: "États de lieux", icon: "🗂️" },
               ] as { id: EchangeSubTab; label: string; icon: string }[]).map((sub) => (
                 <button
                   key={sub.id}

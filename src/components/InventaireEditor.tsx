@@ -8,8 +8,8 @@ export type Ligne = {
   objet: string;
   nbEntree: string;
   etatEntree: string;
-  nbSortie: string;
-  etatSortie: string;
+  nbSortie?: string;
+  etatSortie?: string;
 };
 
 type Data = {
@@ -141,7 +141,7 @@ function uid(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2);
 }
 function newLigne(): Ligne {
-  return { id: uid(), objet: "", nbEntree: "1", etatEntree: "", nbSortie: "", etatSortie: "" };
+  return { id: uid(), objet: "", nbEntree: "1", etatEntree: "" };
 }
 function emptyData(): Data {
   return { dateEntree: "", lignes: [], remarqueCuisine: "", remarqueSDB: "", remarquePiece: "", remarqueGeneral: "" };
@@ -180,15 +180,6 @@ export default function InventaireEditor({ appartementId, titre }: { appartement
     }));
   }, []);
 
-  function copySortie(id: string) {
-    setData((prev) => ({
-      ...prev,
-      lignes: prev.lignes.map((l) =>
-        l.id === id ? { ...l, nbSortie: l.nbEntree, etatSortie: l.etatEntree } : l
-      ),
-    }));
-  }
-
   function addLigne() { setData((p) => ({ ...p, lignes: [...p.lignes, newLigne()] })); }
   function removeLigne(id: string) { setData((p) => ({ ...p, lignes: p.lignes.filter((l) => l.id !== id) })); }
 
@@ -209,8 +200,6 @@ export default function InventaireEditor({ appartementId, titre }: { appartement
       <div className="h-4 bg-gray-200 rounded w-40 mb-4" /><div className="h-32 bg-gray-100 rounded" />
     </div>
   );
-
-  const hasSortieAny = data.lignes.some((l) => l.nbSortie || l.etatSortie);
 
   return (
     <>
@@ -268,37 +257,26 @@ export default function InventaireEditor({ appartementId, titre }: { appartement
           <div className="overflow-x-auto rounded-lg border border-gray-200">
             <table className="w-full text-sm table-fixed">
               <colgroup>
+                <col className="w-[55%]" />
+                <col className="w-[10%]" />
                 <col className="w-[30%]" />
-                <col className="w-[7%]" />
-                <col className="w-[23%]" />
-                <col className="w-[7%]" />
-                <col className="w-[7%]" />
-                <col className="w-[23%]" />
-                <col className="w-[3%]" />
+                <col className="w-[5%]" />
               </colgroup>
               <thead>
                 <tr className="text-xs uppercase tracking-wide font-medium">
                   <th className="bg-gray-50 px-3 py-2.5 text-left text-gray-500" />
-                  {/* Entrée */}
                   <th className="bg-blue-50 px-2 py-2.5 text-center text-blue-600">Qté</th>
-                  <th className="bg-blue-50 px-2 py-2.5 text-left text-blue-600">État entrée</th>
-                  {/* Séparateur */}
-                  <th className="bg-gray-50 px-2 py-2.5" />
-                  {/* Sortie */}
-                  <th className={`px-2 py-2.5 text-center ${hasSortieAny ? "bg-orange-50 text-orange-600" : "bg-gray-50 text-gray-300"}`}>Qté</th>
-                  <th className={`px-2 py-2.5 text-left ${hasSortieAny ? "bg-orange-50 text-orange-600" : "bg-gray-50 text-gray-300"}`}>État sortie</th>
+                  <th className="bg-blue-50 px-2 py-2.5 text-left text-blue-600">État</th>
                   <th className="bg-gray-50 px-2 py-2.5" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {data.lignes.length === 0 && (
-                  <tr><td colSpan={7} className="px-3 py-8 text-center text-sm text-gray-400">
+                  <tr><td colSpan={4} className="px-3 py-8 text-center text-sm text-gray-400">
                     Aucun article — cliquez sur &quot;Ajouter un article&quot; ci-dessous.
                   </td></tr>
                 )}
-                {data.lignes.map((l) => {
-                  const hasSortie = !!(l.nbSortie || l.etatSortie);
-                  return (
+                {data.lignes.map((l) => (
                     <tr key={l.id} className="hover:bg-gray-50/50 align-middle">
 
                       {/* Objet */}
@@ -308,53 +286,14 @@ export default function InventaireEditor({ appartementId, titre }: { appartement
                           placeholder="Ex. Sommier 90×190" />
                       </td>
 
-                      {/* Qté entrée */}
+                      {/* Qté */}
                       <td className="bg-blue-50/30 px-2 py-1.5">
                         <QteCell value={l.nbEntree} onChange={(v) => setLigne(l.id, "nbEntree", v)} />
                       </td>
 
-                      {/* État entrée */}
+                      {/* État */}
                       <td className="bg-blue-50/30 px-2 py-1.5">
-                        <EtatSelect value={l.etatEntree} onChange={(v) => setLigne(l.id, "etatEntree", v)} placeholder="— Entrée —" />
-                      </td>
-
-                      {/* Bouton copier en sortie */}
-                      <td className="px-1 py-1.5 text-center">
-                        <button onClick={() => copySortie(l.id)} title="Copier en sortie"
-                          className={`mx-auto flex items-center justify-center w-8 h-8 rounded-lg transition-colors ${
-                            hasSortie
-                              ? "text-orange-500 bg-orange-50 hover:bg-orange-100"
-                              : "text-gray-400 hover:text-orange-500 hover:bg-orange-50"
-                          }`}>
-                          <IconSortie />
-                        </button>
-                      </td>
-
-                      {/* Qté sortie */}
-                      <td className={`px-2 py-1.5 transition-colors ${hasSortie ? "bg-orange-50/30" : ""}`}>
-                        {hasSortie
-                          ? <QteCell value={l.nbSortie || "1"} onChange={(v) => setLigne(l.id, "nbSortie", v)} />
-                          : <span className="block text-center text-gray-200 select-none">—</span>
-                        }
-                      </td>
-
-                      {/* État sortie */}
-                      <td className={`px-2 py-1.5 transition-colors ${hasSortie ? "bg-orange-50/30" : ""}`}>
-                        {hasSortie ? (
-                          <div className="flex items-center gap-1">
-                            <div className="flex-1 min-w-0">
-                              <EtatSelect value={l.etatSortie} onChange={(v) => setLigne(l.id, "etatSortie", v)} placeholder="— Sortie —" />
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => { setLigne(l.id, "nbSortie", ""); setLigne(l.id, "etatSortie", ""); }}
-                              title="Effacer les données de sortie"
-                              className="flex-shrink-0 w-5 h-5 flex items-center justify-center text-gray-300 hover:text-orange-500 transition-colors rounded hover:bg-orange-50"
-                            >✕</button>
-                          </div>
-                        ) : (
-                          <span className="block text-gray-200 select-none text-sm">—</span>
-                        )}
+                        <EtatSelect value={l.etatEntree} onChange={(v) => setLigne(l.id, "etatEntree", v)} placeholder="— État —" />
                       </td>
 
                       {/* Supprimer */}
@@ -382,8 +321,7 @@ export default function InventaireEditor({ appartementId, titre }: { appartement
                         )}
                       </td>
                     </tr>
-                  );
-                })}
+                  ))}
               </tbody>
             </table>
           </div>
@@ -434,8 +372,6 @@ function PrintableInventaire({ titre, data }: { titre: string; data: Data }) {
     { label: "Pièce principale", value: data.remarquePiece },
     { label: "Général",          value: data.remarqueGeneral },
   ].filter((r) => r.value);
-  const hasSortieData = data.lignes.some((l) => l.nbSortie || l.etatSortie);
-
   return (
     <div style={{ fontFamily: "Arial, sans-serif", fontSize: "11pt", color: "#000" }}>
       <div style={{ textAlign: "center", marginBottom: "20px" }}>
@@ -446,12 +382,8 @@ function PrintableInventaire({ titre, data }: { titre: string; data: Data }) {
         <thead>
           <tr style={{ backgroundColor: "#f3f4f6" }}>
             <th style={{ border: "1px solid #d1d5db", padding: "6px 8px", textAlign: "left" }}>Objet</th>
-            <th style={{ border: "1px solid #d1d5db", padding: "6px 8px", textAlign: "center" }}>Qté entrée</th>
-            <th style={{ border: "1px solid #d1d5db", padding: "6px 8px", textAlign: "left" }}>État entrée</th>
-            {hasSortieData && <>
-              <th style={{ border: "1px solid #d1d5db", padding: "6px 8px", textAlign: "center" }}>Qté sortie</th>
-              <th style={{ border: "1px solid #d1d5db", padding: "6px 8px", textAlign: "left" }}>État sortie</th>
-            </>}
+            <th style={{ border: "1px solid #d1d5db", padding: "6px 8px", textAlign: "center" }}>Qté</th>
+            <th style={{ border: "1px solid #d1d5db", padding: "6px 8px", textAlign: "left" }}>État</th>
           </tr>
         </thead>
         <tbody>
@@ -460,10 +392,6 @@ function PrintableInventaire({ titre, data }: { titre: string; data: Data }) {
               <td style={{ border: "1px solid #d1d5db", padding: "5px 8px" }}>{l.objet}</td>
               <td style={{ border: "1px solid #d1d5db", padding: "5px 8px", textAlign: "center" }}>{l.nbEntree || "—"}</td>
               <td style={{ border: "1px solid #d1d5db", padding: "5px 8px" }}>{l.etatEntree || "—"}</td>
-              {hasSortieData && <>
-                <td style={{ border: "1px solid #d1d5db", padding: "5px 8px", textAlign: "center" }}>{l.nbSortie || "—"}</td>
-                <td style={{ border: "1px solid #d1d5db", padding: "5px 8px" }}>{l.etatSortie || "—"}</td>
-              </>}
             </tr>
           ))}
         </tbody>

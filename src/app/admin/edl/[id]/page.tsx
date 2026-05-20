@@ -184,21 +184,37 @@ export default function EdlAdminPage({ params }: { params: Promise<{ id: string 
 
         {/* Tableau des lignes */}
         <section className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="p-5 pb-3">
-            <h2 className="font-semibold text-gray-900">Inventaire</h2>
-            <p className="text-xs text-gray-400 mt-0.5">
-              {isEntree ? "Remplissez les colonnes Entrée." : "Remplissez les colonnes Sortie et comparez avec l'entrée."}
-            </p>
+          <div className="p-5 pb-3 flex items-start justify-between gap-3">
+            <div>
+              <h2 className="font-semibold text-gray-900">Inventaire</h2>
+              <p className="text-xs text-gray-400 mt-0.5">
+                {isEntree ? "Remplissez les colonnes Entrée." : "Remplissez les colonnes Sortie. La flèche → copie l'état entrée."}
+              </p>
+            </div>
+            {!isEntree && (
+              <button
+                type="button"
+                onClick={() => setLignes((prev) => prev.map((l) => ({ ...l, nbSortie: l.nbEntree, etatSortie: l.etatEntree })))}
+                className="shrink-0 flex items-center gap-1.5 border border-gray-300 rounded-lg px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50 transition-colors"
+                title="Copier tous les états d'entrée vers la sortie"
+              >
+                <span>Tout copier</span>
+                <span className="text-base leading-none">→</span>
+              </button>
+            )}
           </div>
-          <div className="overflow-x-auto">
+
+          {/* Vue desktop : tableau */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-y border-gray-200">
                 <tr>
-                  <th className="text-left px-4 py-2 font-medium text-gray-600 w-48">Objet</th>
-                  <th className="text-center px-2 py-2 font-medium text-gray-600 w-16">Nb E.</th>
+                  <th className="text-left px-4 py-2 font-medium text-gray-600 w-44">Objet</th>
+                  <th className="text-center px-2 py-2 font-medium text-gray-600 w-14">Nb E.</th>
                   <th className="text-left px-2 py-2 font-medium text-gray-600">État entrée</th>
                   {!isEntree && <>
-                    <th className="text-center px-2 py-2 font-medium text-gray-600 w-16">Nb S.</th>
+                    <th className="w-8"></th>
+                    <th className="text-center px-2 py-2 font-medium text-gray-600 w-14">Nb S.</th>
                     <th className="text-left px-2 py-2 font-medium text-gray-600">État sortie</th>
                   </>}
                 </tr>
@@ -206,47 +222,103 @@ export default function EdlAdminPage({ params }: { params: Promise<{ id: string 
               <tbody className="divide-y divide-gray-100">
                 {lignes.map((l, idx) => (
                   <tr key={l.id} className="hover:bg-gray-50/50">
-                    <td className="px-4 py-2 text-gray-900 font-medium">{l.objet}</td>
+                    <td className="px-4 py-2 text-gray-900 font-medium text-sm">{l.objet}</td>
                     <td className="px-2 py-2 text-center">
-                      <input
-                        type="text" value={l.nbEntree}
+                      <input type="text" value={l.nbEntree}
                         onChange={(e) => updateLigne(idx, "nbEntree", e.target.value)}
-                        className="w-12 text-center border border-gray-200 rounded px-1 py-0.5 text-sm focus:outline-none focus:border-gray-400"
-                      />
+                        className="w-12 text-center border border-gray-200 rounded px-1 py-0.5 text-sm focus:outline-none focus:border-gray-400" />
                     </td>
                     <td className="px-2 py-2">
-                      <input
-                        list="etats-list"
-                        type="text" value={l.etatEntree}
+                      <input list="etats-list" type="text" value={l.etatEntree}
                         onChange={(e) => updateLigne(idx, "etatEntree", e.target.value)}
                         className="w-full border border-gray-200 rounded px-2 py-0.5 text-sm focus:outline-none focus:border-gray-400"
-                        placeholder="État…"
-                      />
+                        placeholder="État…" />
                     </td>
                     {!isEntree && <>
+                      <td className="px-1 py-2 text-center">
+                        <button
+                          type="button"
+                          onClick={() => { updateLigne(idx, "nbSortie", l.nbEntree); updateLigne(idx, "etatSortie", l.etatEntree); }}
+                          title="Copier depuis l'entrée"
+                          className="text-gray-400 hover:text-blue-600 transition-colors text-base leading-none px-1"
+                        >→</button>
+                      </td>
                       <td className="px-2 py-2 text-center">
-                        <input
-                          type="text" value={l.nbSortie}
+                        <input type="text" value={l.nbSortie}
                           onChange={(e) => updateLigne(idx, "nbSortie", e.target.value)}
-                          className="w-12 text-center border border-gray-200 rounded px-1 py-0.5 text-sm focus:outline-none focus:border-gray-400"
-                        />
+                          className="w-12 text-center border border-gray-200 rounded px-1 py-0.5 text-sm focus:outline-none focus:border-gray-400" />
                       </td>
                       <td className="px-2 py-2">
-                        <input
-                          list="etats-list"
-                          type="text" value={l.etatSortie}
+                        <input list="etats-list" type="text" value={l.etatSortie}
                           onChange={(e) => updateLigne(idx, "etatSortie", e.target.value)}
                           className={`w-full border rounded px-2 py-0.5 text-sm focus:outline-none focus:border-gray-400 ${
                             l.etatSortie && l.etatSortie !== l.etatEntree ? "border-orange-300 bg-orange-50" : "border-gray-200"
                           }`}
-                          placeholder="État…"
-                        />
+                          placeholder="État…" />
                       </td>
                     </>}
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Vue mobile : cartes */}
+          <div className="sm:hidden divide-y divide-gray-100">
+            {lignes.map((l, idx) => (
+              <div key={l.id} className="px-4 py-3 space-y-2">
+                <p className="font-semibold text-gray-900 text-sm">{l.objet}</p>
+                {isEntree ? (
+                  <div className="flex gap-2">
+                    <div className="w-16">
+                      <p className="text-xs text-gray-400 mb-0.5">Nb</p>
+                      <input type="text" value={l.nbEntree}
+                        onChange={(e) => updateLigne(idx, "nbEntree", e.target.value)}
+                        className="w-full text-center border border-gray-200 rounded px-1 py-1 text-sm focus:outline-none focus:border-gray-400" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xs text-gray-400 mb-0.5">État entrée</p>
+                      <input list="etats-list" type="text" value={l.etatEntree}
+                        onChange={(e) => updateLigne(idx, "etatEntree", e.target.value)}
+                        className="w-full border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:border-gray-400"
+                        placeholder="État…" />
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {/* Ligne entrée (lecture) */}
+                    <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
+                      <span className="text-xs text-gray-400 w-6 text-center">{l.nbEntree}</span>
+                      <span className="text-xs text-gray-500 flex-1">{l.etatEntree || "—"}</span>
+                      <button
+                        type="button"
+                        onClick={() => { updateLigne(idx, "nbSortie", l.nbEntree); updateLigne(idx, "etatSortie", l.etatEntree); }}
+                        className="shrink-0 text-blue-500 hover:text-blue-700 font-bold text-base px-1 transition-colors"
+                        title="Copier vers sortie"
+                      >→</button>
+                    </div>
+                    {/* Ligne sortie (éditable) */}
+                    <div className="flex gap-2">
+                      <div className="w-16">
+                        <p className="text-xs text-gray-400 mb-0.5">Nb S.</p>
+                        <input type="text" value={l.nbSortie}
+                          onChange={(e) => updateLigne(idx, "nbSortie", e.target.value)}
+                          className="w-full text-center border border-gray-200 rounded px-1 py-1 text-sm focus:outline-none focus:border-gray-400" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-xs text-gray-400 mb-0.5">État sortie</p>
+                        <input list="etats-list" type="text" value={l.etatSortie}
+                          onChange={(e) => updateLigne(idx, "etatSortie", e.target.value)}
+                          className={`w-full border rounded px-2 py-1 text-sm focus:outline-none focus:border-gray-400 ${
+                            l.etatSortie && l.etatSortie !== l.etatEntree ? "border-orange-300 bg-orange-50" : "border-gray-200"
+                          }`}
+                          placeholder="État…" />
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            ))}
           </div>
         </section>
 

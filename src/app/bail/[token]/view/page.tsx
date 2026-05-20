@@ -39,6 +39,7 @@ type BailInfo = {
     courExtVegetalisee: boolean;
     loyerPrecedentLocataire: number | null;
     coutEnergMensuel: number | null;
+    pdl: string | null;
     inventaire: {
       dateEntree: string | null;
       lignes: string;
@@ -89,7 +90,7 @@ function BailViewContent() {
     garantDateNaissance: bail.garantDateNaissance, garantAdresse: bail.garantAdresse,
     typeChauffage: a.typeChauffage, courExtVegetalisee: a.courExtVegetalisee,
     loyerPrecedentLocataire: a.loyerPrecedentLocataire, coutEnergMensuel: a.coutEnergMensuel,
-    dpePdf: a.dpePdf,
+    dpePdf: a.dpePdf, pdl: a.pdl,
     inventaire: a.inventaire,
     pasDeGarant: bail.pasDeGarant,
     cautionData: null,

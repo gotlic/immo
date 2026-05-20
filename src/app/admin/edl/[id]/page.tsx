@@ -12,6 +12,68 @@ type Ligne = {
   nbSortie: string; etatSortie: string;
 };
 
+/* ── Composants UI partagés avec InventaireEditor ── */
+const ETAT_OPTIONS = ["Neuf", "Très bon", "Bon", "Correct", "A remplacer", "Antiquité"] as const;
+const ETAT_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  "Neuf":        { bg: "bg-green-100",  text: "text-green-800",  border: "border-green-300"  },
+  "Très bon":    { bg: "bg-teal-100",   text: "text-teal-800",   border: "border-teal-300"   },
+  "Bon":         { bg: "bg-lime-100",   text: "text-lime-800",   border: "border-lime-300"   },
+  "Correct":     { bg: "bg-yellow-100", text: "text-yellow-800", border: "border-yellow-300" },
+  "A remplacer": { bg: "bg-red-100",    text: "text-red-700",    border: "border-red-300"    },
+  "Antiquité":   { bg: "bg-amber-100",  text: "text-amber-700",  border: "border-amber-300"  },
+};
+
+function EtatSelect({ value, onChange, placeholder = "—" }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
+  const isPredefined = (ETAT_OPTIONS as readonly string[]).includes(value);
+  const [textMode, setTextMode] = useState(!isPredefined && value !== "");
+  useEffect(() => {
+    if (value === "" || (ETAT_OPTIONS as readonly string[]).includes(value)) setTextMode(false);
+  }, [value]);
+  const c = isPredefined ? ETAT_COLORS[value] : null;
+  const selectClass = c
+    ? `${c.bg} ${c.text} ${c.border} border rounded px-2 py-1 text-sm font-medium w-full outline-none cursor-pointer`
+    : "bg-white text-gray-600 border border-gray-300 rounded px-2 py-1 text-sm w-full outline-none cursor-pointer";
+  if (textMode) return (
+    <div className="flex gap-1 items-center">
+      <input autoFocus value={value} onChange={(e) => onChange(e.target.value)}
+        className="flex-1 border border-gray-300 rounded px-2 py-1 text-sm outline-none bg-white focus:ring-1 focus:ring-blue-400 min-w-0" placeholder="Préciser…" />
+      <button type="button" onClick={() => { setTextMode(false); onChange(""); }} className="text-gray-400 hover:text-gray-600 text-xs px-1" title="Retour">✕</button>
+    </div>
+  );
+  return (
+    <select value={value} onChange={(e) => { if (e.target.value === "__libre__") { setTextMode(true); onChange(""); } else onChange(e.target.value); }} className={selectClass}>
+      <option value="">{placeholder}</option>
+      {ETAT_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+      <option value="__libre__">Texte libre…</option>
+    </select>
+  );
+}
+
+function QteCell({ value, onChange, readOnly = false }: { value: string; onChange?: (v: string) => void; readOnly?: boolean }) {
+  const nb = Math.max(1, parseInt(value) || 1);
+  if (readOnly) return <span className="block w-6 text-center text-sm font-semibold tabular-nums select-none mx-auto">{nb}</span>;
+  return (
+    <div className="flex items-center justify-center gap-1.5">
+      <span className="w-6 text-center text-sm font-semibold tabular-nums select-none">{nb}</span>
+      <div className="flex flex-col gap-px">
+        <button type="button" onClick={() => onChange?.(String(nb + 1))} className="w-5 h-[14px] flex items-center justify-center text-gray-400 hover:text-gray-800 transition-colors">
+          <svg width="9" height="6" viewBox="0 0 9 6" fill="currentColor"><path d="M4.5 0L9 6H0z"/></svg>
+        </button>
+        <button type="button" onClick={() => onChange?.(String(Math.max(1, nb - 1)))} disabled={nb <= 1} className="w-5 h-[14px] flex items-center justify-center text-gray-400 hover:text-gray-800 disabled:opacity-25 transition-colors">
+          <svg width="9" height="6" viewBox="0 0 9 6" fill="currentColor"><path d="M4.5 6L0 0H9z"/></svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function IconSortie() {
+  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>;
+}
+function IconTrash() {
+  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>;
+}
+
 type Edl = {
   id: number; token: string; type: "entree" | "sortie"; date: string | null; status: string;
   lignes: string; photos: string;
@@ -184,141 +246,111 @@ export default function EdlAdminPage({ params }: { params: Promise<{ id: string 
 
         {/* Tableau des lignes */}
         <section className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="p-5 pb-3 flex items-start justify-between gap-3">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
             <div>
               <h2 className="font-semibold text-gray-900">Inventaire</h2>
               <p className="text-xs text-gray-400 mt-0.5">
-                {isEntree ? "Remplissez les colonnes Entrée." : "Remplissez les colonnes Sortie. La flèche → copie l'état entrée."}
+                {isEntree ? "Remplissez les colonnes Entrée." : "Utilisez la flèche → pour copier l'état d'entrée."}
               </p>
             </div>
             {!isEntree && (
               <button
                 type="button"
                 onClick={() => setLignes((prev) => prev.map((l) => ({ ...l, nbSortie: l.nbEntree, etatSortie: l.etatEntree })))}
-                className="shrink-0 flex items-center gap-1.5 border border-gray-300 rounded-lg px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50 transition-colors"
-                title="Copier tous les états d'entrée vers la sortie"
+                className="flex items-center gap-1.5 border border-gray-300 rounded-lg px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50 transition-colors"
               >
-                <span>Tout copier</span>
-                <span className="text-base leading-none">→</span>
+                Tout copier <IconSortie />
               </button>
             )}
           </div>
 
-          {/* Vue desktop : tableau */}
-          <div className="hidden sm:block overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-y border-gray-200">
-                <tr>
-                  <th className="text-left px-4 py-2 font-medium text-gray-600 w-44">Objet</th>
-                  <th className="text-center px-2 py-2 font-medium text-gray-600 w-14">Nb E.</th>
-                  <th className="text-left px-2 py-2 font-medium text-gray-600">État entrée</th>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm table-fixed">
+              <colgroup>
+                <col className="w-[28%]" />
+                <col className="w-[8%]" />
+                <col className="w-[24%]" />
+                {!isEntree && <>
+                  <col className="w-[6%]" />
+                  <col className="w-[8%]" />
+                  <col className="w-[22%]" />
+                  <col className="w-[4%]" />
+                </>}
+              </colgroup>
+              <thead>
+                <tr className="text-xs uppercase tracking-wide font-medium">
+                  <th className="bg-gray-50 px-3 py-2.5 text-left text-gray-500" />
+                  <th className="bg-blue-50 px-2 py-2.5 text-center text-blue-600">Qté</th>
+                  <th className="bg-blue-50 px-2 py-2.5 text-left text-blue-600">État entrée</th>
                   {!isEntree && <>
-                    <th className="w-8"></th>
-                    <th className="text-center px-2 py-2 font-medium text-gray-600 w-14">Nb S.</th>
-                    <th className="text-left px-2 py-2 font-medium text-gray-600">État sortie</th>
+                    <th className="bg-gray-50 px-1 py-2.5" />
+                    <th className={`px-2 py-2.5 text-center ${lignes.some(l => l.nbSortie || l.etatSortie) ? "bg-orange-50 text-orange-600" : "bg-gray-50 text-gray-300"}`}>Qté</th>
+                    <th className={`px-2 py-2.5 text-left ${lignes.some(l => l.nbSortie || l.etatSortie) ? "bg-orange-50 text-orange-600" : "bg-gray-50 text-gray-300"}`}>État sortie</th>
+                    <th className="bg-gray-50 px-2 py-2.5" />
                   </>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {lignes.map((l, idx) => (
-                  <tr key={l.id} className="hover:bg-gray-50/50">
-                    <td className="px-4 py-2 text-gray-900 font-medium text-sm">{l.objet}</td>
-                    <td className="px-2 py-2 text-center">
-                      <input type="text" value={l.nbEntree}
-                        onChange={(e) => updateLigne(idx, "nbEntree", e.target.value)}
-                        className="w-12 text-center border border-gray-200 rounded px-1 py-0.5 text-sm focus:outline-none focus:border-gray-400" />
-                    </td>
-                    <td className="px-2 py-2">
-                      <input list="etats-list" type="text" value={l.etatEntree}
-                        onChange={(e) => updateLigne(idx, "etatEntree", e.target.value)}
-                        className="w-full border border-gray-200 rounded px-2 py-0.5 text-sm focus:outline-none focus:border-gray-400"
-                        placeholder="État…" />
-                    </td>
-                    {!isEntree && <>
-                      <td className="px-1 py-2 text-center">
-                        <button
-                          type="button"
-                          onClick={() => { updateLigne(idx, "nbSortie", l.nbEntree); updateLigne(idx, "etatSortie", l.etatEntree); }}
-                          title="Copier depuis l'entrée"
-                          className="text-gray-400 hover:text-blue-600 transition-colors text-base leading-none px-1"
-                        >→</button>
+                {lignes.map((l, idx) => {
+                  const hasSortie = !!(l.nbSortie || l.etatSortie);
+                  return (
+                    <tr key={l.id} className="hover:bg-gray-50/50 align-middle">
+                      <td className="px-3 py-1.5 text-gray-900 font-medium text-sm">{l.objet}</td>
+                      <td className="bg-blue-50/30 px-2 py-1.5">
+                        {isEntree
+                          ? <QteCell value={l.nbEntree} onChange={(v) => updateLigne(idx, "nbEntree", v)} />
+                          : <QteCell value={l.nbEntree} readOnly />}
                       </td>
-                      <td className="px-2 py-2 text-center">
-                        <input type="text" value={l.nbSortie}
-                          onChange={(e) => updateLigne(idx, "nbSortie", e.target.value)}
-                          className="w-12 text-center border border-gray-200 rounded px-1 py-0.5 text-sm focus:outline-none focus:border-gray-400" />
+                      <td className="bg-blue-50/30 px-2 py-1.5">
+                        {isEntree
+                          ? <EtatSelect value={l.etatEntree} onChange={(v) => updateLigne(idx, "etatEntree", v)} placeholder="— Entrée —" />
+                          : (() => { const c = ETAT_COLORS[l.etatEntree]; return (
+                              <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${c ? `${c.bg} ${c.text} ${c.border} border` : "text-gray-500"}`}>
+                                {l.etatEntree || "—"}
+                              </span>); })()
+                        }
                       </td>
-                      <td className="px-2 py-2">
-                        <input list="etats-list" type="text" value={l.etatSortie}
-                          onChange={(e) => updateLigne(idx, "etatSortie", e.target.value)}
-                          className={`w-full border rounded px-2 py-0.5 text-sm focus:outline-none focus:border-gray-400 ${
-                            l.etatSortie && l.etatSortie !== l.etatEntree ? "border-orange-300 bg-orange-50" : "border-gray-200"
-                          }`}
-                          placeholder="État…" />
-                      </td>
-                    </>}
-                  </tr>
-                ))}
+                      {!isEntree && <>
+                        <td className="px-1 py-1.5 text-center bg-gray-50/30">
+                          <button
+                            type="button"
+                            onClick={() => { updateLigne(idx, "nbSortie", l.nbEntree); updateLigne(idx, "etatSortie", l.etatEntree); }}
+                            title="Copier depuis l'entrée"
+                            className={`mx-auto flex items-center justify-center w-7 h-7 rounded-lg transition-colors ${hasSortie ? "text-orange-500 bg-orange-50 hover:bg-orange-100" : "text-gray-400 hover:text-orange-500 hover:bg-orange-50"}`}
+                          ><IconSortie /></button>
+                        </td>
+                        <td className={`px-2 py-1.5 ${hasSortie ? "bg-orange-50/30" : ""}`}>
+                          {hasSortie
+                            ? <QteCell value={l.nbSortie || "1"} onChange={(v) => updateLigne(idx, "nbSortie", v)} />
+                            : <span className="block text-center text-gray-200 select-none">—</span>}
+                        </td>
+                        <td className={`px-2 py-1.5 ${hasSortie ? "bg-orange-50/30" : ""}`}>
+                          {hasSortie ? (
+                            <div className="flex items-center gap-1">
+                              <div className="flex-1 min-w-0">
+                                <EtatSelect value={l.etatSortie} onChange={(v) => updateLigne(idx, "etatSortie", v)} placeholder="— Sortie —" />
+                              </div>
+                              <button type="button"
+                                onClick={() => { updateLigne(idx, "nbSortie", ""); updateLigne(idx, "etatSortie", ""); }}
+                                className="flex-shrink-0 w-5 h-5 flex items-center justify-center text-gray-300 hover:text-orange-500 transition-colors rounded hover:bg-orange-50"
+                              >✕</button>
+                            </div>
+                          ) : (
+                            <span className="block text-gray-200 select-none text-sm">—</span>
+                          )}
+                        </td>
+                        <td className="px-1 py-1.5 text-center">
+                          <button
+                            onClick={() => setLignes((prev) => prev.filter((_, i) => i !== idx))}
+                            className="mx-auto flex items-center justify-center w-7 h-7 rounded text-red-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                          ><IconTrash /></button>
+                        </td>
+                      </>}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
-          </div>
-
-          {/* Vue mobile : cartes */}
-          <div className="sm:hidden divide-y divide-gray-100">
-            {lignes.map((l, idx) => (
-              <div key={l.id} className="px-4 py-3 space-y-2">
-                <p className="font-semibold text-gray-900 text-sm">{l.objet}</p>
-                {isEntree ? (
-                  <div className="flex gap-2">
-                    <div className="w-16">
-                      <p className="text-xs text-gray-400 mb-0.5">Nb</p>
-                      <input type="text" value={l.nbEntree}
-                        onChange={(e) => updateLigne(idx, "nbEntree", e.target.value)}
-                        className="w-full text-center border border-gray-200 rounded px-1 py-1 text-sm focus:outline-none focus:border-gray-400" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-xs text-gray-400 mb-0.5">État entrée</p>
-                      <input list="etats-list" type="text" value={l.etatEntree}
-                        onChange={(e) => updateLigne(idx, "etatEntree", e.target.value)}
-                        className="w-full border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:border-gray-400"
-                        placeholder="État…" />
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    {/* Ligne entrée (lecture) */}
-                    <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
-                      <span className="text-xs text-gray-400 w-6 text-center">{l.nbEntree}</span>
-                      <span className="text-xs text-gray-500 flex-1">{l.etatEntree || "—"}</span>
-                      <button
-                        type="button"
-                        onClick={() => { updateLigne(idx, "nbSortie", l.nbEntree); updateLigne(idx, "etatSortie", l.etatEntree); }}
-                        className="shrink-0 text-blue-500 hover:text-blue-700 font-bold text-base px-1 transition-colors"
-                        title="Copier vers sortie"
-                      >→</button>
-                    </div>
-                    {/* Ligne sortie (éditable) */}
-                    <div className="flex gap-2">
-                      <div className="w-16">
-                        <p className="text-xs text-gray-400 mb-0.5">Nb S.</p>
-                        <input type="text" value={l.nbSortie}
-                          onChange={(e) => updateLigne(idx, "nbSortie", e.target.value)}
-                          className="w-full text-center border border-gray-200 rounded px-1 py-1 text-sm focus:outline-none focus:border-gray-400" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-xs text-gray-400 mb-0.5">État sortie</p>
-                        <input list="etats-list" type="text" value={l.etatSortie}
-                          onChange={(e) => updateLigne(idx, "etatSortie", e.target.value)}
-                          className={`w-full border rounded px-2 py-1 text-sm focus:outline-none focus:border-gray-400 ${
-                            l.etatSortie && l.etatSortie !== l.etatEntree ? "border-orange-300 bg-orange-50" : "border-gray-200"
-                          }`}
-                          placeholder="État…" />
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            ))}
           </div>
         </section>
 
@@ -469,21 +501,6 @@ export default function EdlAdminPage({ params }: { params: Promise<{ id: string 
         </section>
 
       </main>
-
-      {/* Datalist états */}
-      <datalist id="etats-list">
-        <option value="Neuf" />
-        <option value="Très bon état" />
-        <option value="Bon état" />
-        <option value="État correct" />
-        <option value="Usagé" />
-        <option value="Usure normale" />
-        <option value="Abîmé" />
-        <option value="Dégradé" />
-        <option value="Manquant" />
-        <option value="À remplacer" />
-        <option value="Non vérifié" />
-      </datalist>
 
       {/* Modal signature bailleur */}
       {showSignature && (

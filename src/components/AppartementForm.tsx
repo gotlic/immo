@@ -19,6 +19,7 @@ type FormData = {
   courExtVegetalisee: boolean;
   loyerPrecedentLocataire: string;
   coutEnergMensuel: string;
+  pdl: string;
 };
 
 type Props = {
@@ -35,7 +36,7 @@ const EMPTY: FormData = {
   dpeClasse: "", disponible: true, specificites: "", adresse: "", ville: "",
   typeBail: "meuble",
   typeChauffage: "", courExtVegetalisee: false,
-  loyerPrecedentLocataire: "", coutEnergMensuel: "",
+  loyerPrecedentLocataire: "", coutEnergMensuel: "", pdl: "",
 };
 
 export default function AppartementForm({ appartementId, initial, initialPhotos = [], initialVideos = [], dpePdfInitial }: Props) {
@@ -369,6 +370,16 @@ export default function AppartementForm({ appartementId, initial, initialPhotos 
               onChange={(e) => set("coutEnergMensuel", e.target.value)}
               className="input"
               placeholder="Ex. 65"
+            />
+          </div>
+          <div>
+            <label className="label">PDL — Point De Livraison électricité</label>
+            <input
+              type="text"
+              value={form.pdl}
+              onChange={(e) => set("pdl", e.target.value)}
+              className="input"
+              placeholder="Ex. 30001234567890"
             />
           </div>
         </div>

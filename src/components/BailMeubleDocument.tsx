@@ -151,7 +151,7 @@ export default function BailMeubleDocument({
     prenomNom, dateNaissance, villeNaissance, departementNaissance,
     adresseLocataire, tel, mailLocataire,
     garantCivilite, garantPrenomNom, garantDateNaissance, garantAdresse,
-    typeChauffage, courExtVegetalisee, loyerPrecedentLocataire, coutEnergMensuel, dpePdf,
+    typeChauffage, courExtVegetalisee, loyerPrecedentLocataire, coutEnergMensuel, dpePdf, pdl,
   } = data;
 
   const T = templateMode; // raccourci
@@ -277,6 +277,12 @@ export default function BailMeubleDocument({
                 L&apos;abonnement à un fournisseur de gaz est au choix et à la charge du locataire. Ce dernier s&apos;engage à effectuer un entretien annuel de la chaudière au plus tard le 31 décembre de chaque année.
               </p>
             )}
+            <h3 className="bail-h3 mt-3">H. Électricité</h3>
+            <p className="text-xs text-gray-600">
+              Le locataire doit souscrire un contrat d&apos;électricité auprès du fournisseur de son choix.
+              Le Point De Livraison (PDL) à communiquer au fournisseur est le&nbsp;:
+              {" "}<strong>{T ? <F label="PDL" /> : (pdl || "________________")}</strong>.
+            </p>
           </>
         )}
       </section>

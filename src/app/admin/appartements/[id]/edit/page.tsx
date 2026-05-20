@@ -16,6 +16,7 @@ type Appartement = {
   specificites: string | null; adresse: string | null; ville: string | null;
   typeBail: string; typeChauffage: string | null; courExtVegetalisee: boolean;
   loyerPrecedentLocataire: number | null; coutEnergMensuel: number | null;
+  pdl: string | null;
   photos: { id: number; url: string; ordre: number }[];
   videos: { id: number; url: string; type: string }[];
 };
@@ -108,6 +109,7 @@ export default function EditAppartementPage() {
               courExtVegetalisee: appart.courExtVegetalisee,
               loyerPrecedentLocataire: appart.loyerPrecedentLocataire !== null ? String(appart.loyerPrecedentLocataire) : "",
               coutEnergMensuel: appart.coutEnergMensuel !== null ? String(appart.coutEnergMensuel) : "",
+              pdl: appart.pdl ?? "",
             }}
             initialPhotos={appart.photos}
             initialVideos={appart.videos}

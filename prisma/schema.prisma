@@ -30,6 +30,7 @@ model Appartement {
   courExtVegetalisee       Boolean   @default(false)
   loyerPrecedentLocataire  Float?    // BO uniquement — affiché dans le bail
   coutEnergMensuel         Float?    // BO uniquement — affiché dans le bail
+  pdl                      String?   // Point De Livraison électricité
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

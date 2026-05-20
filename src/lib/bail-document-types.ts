@@ -42,6 +42,7 @@ export type BailDocumentData = {
   courExtVegetalisee: boolean;
   loyerPrecedentLocataire: number | null;
   coutEnergMensuel: number | null;
+  pdl: string | null;
 
   // DPE
   dpePdf: string | null;

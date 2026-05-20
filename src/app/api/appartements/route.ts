@@ -37,6 +37,7 @@ export async function POST(req: NextRequest) {
       courExtVegetalisee: data.courExtVegetalisee ?? false,
       loyerPrecedentLocataire: data.loyerPrecedentLocataire ? parseFloat(data.loyerPrecedentLocataire) : null,
       coutEnergMensuel: data.coutEnergMensuel ? parseFloat(data.coutEnergMensuel) : null,
+      pdl: data.pdl || null,
     },
   });
   return NextResponse.json(appartement, { status: 201 });

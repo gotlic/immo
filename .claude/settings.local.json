@@ -202,7 +202,14 @@
       "Bash(git -C /Users/gautier/Code/site_immo/.claude/worktrees/beautiful-thompson-2526d8 log --all --oneline)",
       "Bash(git -C /Users/gautier/Code/site_immo/.claude/worktrees/beautiful-thompson-2526d8 show c6cddd9:src/app/admin/page.tsx)",
       "Bash(git -C /Users/gautier/Code/site_immo/.claude/worktrees/beautiful-thompson-2526d8 stash)",
-      "Bash(git -C /Users/gautier/Code/site_immo/.claude/worktrees/beautiful-thompson-2526d8 pull --ff-only origin main)"
+      "Bash(git -C /Users/gautier/Code/site_immo/.claude/worktrees/beautiful-thompson-2526d8 pull --ff-only origin main)",
+      "Bash(git -C /Users/gautier/Code/site_immo/.claude/worktrees/beautiful-thompson-2526d8 checkout package-lock.json next.config.ts)",
+      "Bash(git -C /Users/gautier/Code/site_immo/.claude/worktrees/beautiful-thompson-2526d8 stash drop)",
+      "Bash(git -C /Users/gautier/Code/site_immo/.claude/worktrees/beautiful-thompson-2526d8 checkout HEAD -- package-lock.json next.config.ts)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(git commit *)"
     ]
   }
 }

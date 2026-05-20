@@ -42,7 +42,7 @@ type BailInfo = {
     loyer: number; montantCharges: number | null; detailCharges: string | null;
     dpePdf: string | null; typeBail: string;
     typeChauffage: string | null; courExtVegetalisee: boolean;
-    loyerPrecedentLocataire: number | null; coutEnergMensuel: number | null;
+    loyerPrecedentLocataire: number | null; coutEnergMensuel: number | null; pdl: string | null;
     inventaire: {
       dateEntree: string | null; lignes: string;
       remarqueCuisine: string | null; remarqueSDB: string | null;
@@ -224,7 +224,7 @@ export default function TenantFormPage() {
       garantDateNaissance: bail.garantDateNaissance, garantAdresse: bail.garantAdresse,
       typeChauffage: a.typeChauffage, courExtVegetalisee: a.courExtVegetalisee,
       loyerPrecedentLocataire: a.loyerPrecedentLocataire, coutEnergMensuel: a.coutEnergMensuel,
-      dpePdf: a.dpePdf,
+      dpePdf: a.dpePdf, pdl: a.pdl,
       inventaire: a.inventaire,
       pasDeGarant: bail.pasDeGarant,
       cautionData,
@@ -512,7 +512,7 @@ export default function TenantFormPage() {
     garantCivilite, garantPrenomNom, garantDateNaissance, garantAdresse,
     typeChauffage: a.typeChauffage, courExtVegetalisee: a.courExtVegetalisee,
     loyerPrecedentLocataire: a.loyerPrecedentLocataire, coutEnergMensuel: a.coutEnergMensuel,
-    dpePdf: a.dpePdf,
+    dpePdf: a.dpePdf, pdl: a.pdl,
     inventaire: a.inventaire,
     pasDeGarant: bail.pasDeGarant,
     cautionData,

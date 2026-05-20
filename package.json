@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
-    "build": "RAYON_NUM_THREADS=1 next build --webpack",
+    "build": "prisma generate && RAYON_NUM_THREADS=1 next build --webpack",
     "start": "node server.js",
     "start:next": "next start",
     "lint": "eslint"

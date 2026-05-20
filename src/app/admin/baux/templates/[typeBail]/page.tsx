@@ -20,7 +20,7 @@ const EMPTY_DATA = {
   garantCivilite: null, garantPrenomNom: null,
   garantDateNaissance: null, garantAdresse: null,
   typeChauffage: null, courExtVegetalisee: false,
-  loyerPrecedentLocataire: null, coutEnergMensuel: null,
+  loyerPrecedentLocataire: null, coutEnergMensuel: null, pdl: null,
   dpePdf: null, inventaire: null, cautionData: null,
   garantLieu: null, signatureCaution: null, signatureCautionAt: null,
 };

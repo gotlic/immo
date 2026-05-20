@@ -13,6 +13,11 @@ function toJJMMAAAA(val: string | null | undefined): string {
 import Link from "next/link";
 
 type Edl = { id: number; type: string; status: string; date: string | null };
+type Paiement = {
+  id: number; mois: string; montant: number;
+  loyerHC: number | null; chargesMois: number | null;
+  statut: string; datePaiement: string | null; note: string | null;
+};
 type Fiche = {
   id: number; token: string; status: string; archived: boolean;
   prenomNom: string | null; dateNaissance: string | null;
@@ -33,6 +38,7 @@ type Fiche = {
   inventaireId: number | null;
   edlEntree: Edl | null;
   edlSortie: Edl | null;
+  paiements: Paiement[];
 };
 
 type EditForm = {
@@ -337,6 +343,63 @@ export default function FicheLocatairePage({ params }: { params: Promise<{ id: s
               <Row label="Adresse" value={fiche.garantAdresse} field="garantAdresse" editing={editing} form={form} onChange={handleChange} />
               <Row label="Email" value={fiche.garantEmail} field="garantEmail" editing={editing} form={form} onChange={handleChange} />
             </>
+          )}
+        </Section>
+
+        {/* Paiements */}
+        <Section title="Paiements">
+          {fiche.paiements.length === 0 ? (
+            <p className="text-sm text-gray-400 italic">Aucun paiement enregistré.</p>
+          ) : (
+            <div className="overflow-x-auto -mx-1">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-xs text-gray-400 uppercase tracking-wide border-b border-gray-100">
+                    <th className="pb-2 text-left font-medium">Mois</th>
+                    <th className="pb-2 text-right font-medium">Loyer HC</th>
+                    <th className="pb-2 text-right font-medium">Charges</th>
+                    <th className="pb-2 text-right font-medium">Total</th>
+                    <th className="pb-2 text-center font-medium">Statut</th>
+                    <th className="pb-2 text-left font-medium">Date paiement</th>
+                    <th className="pb-2 text-left font-medium">Note</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {fiche.paiements.map((p) => {
+                    const loyerHC = p.loyerHC ?? a.loyer;
+                    const charges = p.chargesMois ?? a.montantCharges ?? 0;
+                    const total = p.montant;
+                    const statutColors: Record<string, string> = {
+                      paye:    "bg-green-50 text-green-700",
+                      attendu: "bg-gray-100 text-gray-500",
+                      retard:  "bg-red-50 text-red-600",
+                    };
+                    const statutLabels: Record<string, string> = {
+                      paye: "Payé ✓", attendu: "Attendu", retard: "En retard",
+                    };
+                    const [yr, mo] = p.mois.split("-");
+                    const moisLabel = new Date(parseInt(yr), parseInt(mo) - 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+                    return (
+                      <tr key={p.id} className="hover:bg-gray-50/50">
+                        <td className="py-2 text-gray-900 font-medium capitalize">{moisLabel}</td>
+                        <td className="py-2 text-right text-gray-700">{loyerHC.toLocaleString("fr-FR")} €</td>
+                        <td className="py-2 text-right text-gray-500">{charges > 0 ? `${charges.toLocaleString("fr-FR")} €` : "—"}</td>
+                        <td className="py-2 text-right font-semibold text-gray-900">{total.toLocaleString("fr-FR")} €</td>
+                        <td className="py-2 text-center">
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statutColors[p.statut] ?? "bg-gray-100 text-gray-500"}`}>
+                            {statutLabels[p.statut] ?? p.statut}
+                          </span>
+                        </td>
+                        <td className="py-2 text-gray-400 text-xs">
+                          {p.datePaiement ? new Date(p.datePaiement).toLocaleDateString("fr-FR") : "—"}
+                        </td>
+                        <td className="py-2 text-gray-400 text-xs">{p.note ?? ""}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
         </Section>
 

@@ -507,8 +507,8 @@ function AdminPageInner() {
                       : "?";
                     return (
                       <div key={loc.id} className={`bg-white rounded-xl border border-gray-200 hover:shadow-sm transition-shadow ${loc.archived ? "opacity-50" : ""}`}>
-                        {/* Corps principal */}
-                        <div className="p-4 flex items-center gap-4">
+                        {/* Corps principal — cliquable */}
+                        <Link href={`/admin/locataires/${loc.id}`} className="p-4 flex items-center gap-4 hover:bg-gray-50/50 rounded-t-xl transition-colors block">
                           {/* Avatar initiales */}
                           <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-sm font-semibold text-gray-500 flex-shrink-0">
                             {initials}
@@ -559,11 +559,10 @@ function AdminPageInner() {
                             ) : null}
                           </div>
 
-                        </div>
+                        </Link>
 
                         {/* Pied de carte : actions discrètes */}
                         <div className="px-4 pb-3 flex items-center gap-4">
-                          <Link href={`/admin/locataires/${loc.id}`} className="text-xs text-gray-400 hover:text-gray-700 transition-colors font-medium">Éditer</Link>
                           <button
                             onClick={() => handleArchiveLocataire(loc.id, !loc.archived)}
                             className="text-xs text-gray-400 hover:text-gray-700 transition-colors"

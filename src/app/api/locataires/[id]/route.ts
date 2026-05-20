@@ -37,7 +37,12 @@ export async function GET(_req: NextRequest, { params }: Params) {
     const edlEntree = edls.filter((e) => e.type === "entree").at(-1) ?? null;
     const edlSortie = edls.filter((e) => e.type === "sortie").at(-1) ?? null;
 
-    return NextResponse.json({ ...bail, inventaireId: inventaire?.id ?? null, edlEntree, edlSortie });
+    const paiements = await prisma.paiement.findMany({
+      where: { bailId },
+      orderBy: { mois: "desc" },
+    });
+
+    return NextResponse.json({ ...bail, inventaireId: inventaire?.id ?? null, edlEntree, edlSortie, paiements });
   } catch (err) {
     console.error("GET /api/locataires/[id] error:", err);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });

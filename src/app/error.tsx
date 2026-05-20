@@ -12,6 +12,10 @@ export default function GlobalError({
 }) {
   useEffect(() => {
     console.error(error);
+    // Chunk load error after a new deployment → force reload to get fresh assets
+    if (error?.name === "ChunkLoadError" || error?.message?.includes("Loading chunk")) {
+      window.location.reload();
+    }
   }, [error]);
 
   return (

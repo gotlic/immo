@@ -363,7 +363,7 @@ export default function AppartementForm({ appartementId, initial, initialPhotos 
             />
           </div>
           <div>
-            <label className="label">Coûts énergétiques mensuels du précédent locataire (€)</label>
+            <label className="label">Coûts énergétiques du précédent locataire (€/mois)</label>
             <input
               type="number" min="0" step="0.01"
               value={form.coutEnergMensuel}

@@ -107,10 +107,17 @@ function Row({ label, value, field, editing, form, onChange }: {
 }
 
 function nextRevisionDate(dateDebut: string): string {
-  const d = new Date(dateDebut);
+  const start = new Date(dateDebut);
   const now = new Date();
-  d.setFullYear(now.getFullYear());
-  if (d <= now) d.setFullYear(now.getFullYear() + 1);
+  // Les révisions tombent chaque année à la date anniversaire du bail.
+  // La première révision est au minimum 1 an après le début (jamais la date de début elle-même).
+  let n = 1;
+  const d = new Date(start);
+  d.setFullYear(start.getFullYear() + n);
+  while (d <= now) {
+    n++;
+    d.setFullYear(start.getFullYear() + n);
+  }
   return d.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
 }
 

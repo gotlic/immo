@@ -102,6 +102,14 @@ export default function EdlAdminPage({ params }: { params: Promise<{ id: string 
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [signing, setSigning] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  async function handleDelete() {
+    setDeleting(true);
+    await fetch(`/api/etats-des-lieux/${id}`, { method: "DELETE" });
+    router.push("/admin");
+  }
   const [showSignature, setShowSignature] = useState(false);
   const [notifying, setNotifying] = useState(false);
   const [notified, setNotified] = useState(false);
@@ -223,7 +231,25 @@ export default function EdlAdminPage({ params }: { params: Promise<{ id: string 
               <p className="text-xs text-gray-400">{appart.titre} · {edl.date}</p>
             </div>
           </div>
-          <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${st.color}`}>{st.label}</span>
+          <div className="flex items-center gap-2">
+            <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${st.color}`}>{st.label}</span>
+            {confirmDelete ? (
+              <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-1.5">
+                <span className="text-xs text-red-700">Supprimer cet EDL ?</span>
+                <button onClick={handleDelete} disabled={deleting}
+                  className="text-xs bg-red-600 text-white px-2 py-0.5 rounded hover:bg-red-700 disabled:opacity-50">
+                  {deleting ? "…" : "Oui"}
+                </button>
+                <button onClick={() => setConfirmDelete(false)}
+                  className="text-xs text-gray-500 hover:text-gray-700 px-1">Non</button>
+              </div>
+            ) : (
+              <button onClick={() => setConfirmDelete(true)}
+                className="text-sm text-red-400 hover:text-red-600 border border-red-200 hover:border-red-400 px-3 py-1.5 rounded-lg transition-colors">
+                🗑 Supprimer
+              </button>
+            )}
+          </div>
         </div>
       </header>
 

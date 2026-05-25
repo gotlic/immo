@@ -16,6 +16,7 @@ type Appartement = {
 type BailListItem = {
   id: number; token: string; status: string;
   dateDebut: string | null; prenomNom: string | null; pasDeGarant: boolean;
+  mailLocataire: string | null;
   appartement: { titre: string; ville: string | null; adresse: string | null };
 };
 
@@ -55,7 +56,7 @@ type PaiementItem = {
 };
 
 type Tab = "appartements" | "locataires" | "paiements" | "echanges";
-type EchangeSubTab = "baux" | "inventaires";
+type EchangeSubTab = "baux" | "inventaires" | "quittances";
 type PaiementSubTab = "loyer" | "depot";
 
 const STATUS_LABEL: Record<string, { label: string; color: string }> = {
@@ -94,6 +95,21 @@ function AdminPageInner() {
     bailId: number; montantRecu: string; datePaiement: string;
   } | null>(null);
 
+  // Quittances form state
+  const [qBailId, setQBailId] = useState<string>("");
+  const [qModeRange, setQModeRange] = useState(false);
+  const [qMois, setQMois] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  });
+  const [qMoisFin, setQMoisFin] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  });
+  const [qSending, setQSending] = useState(false);
+  const [qSent, setQSent] = useState(false);
+  const [qError, setQError] = useState<string | null>(null);
+
   const [activeTab, setActiveTabState] = useState<Tab>((searchParams.get("tab") as Tab) ?? "appartements");
   const [activeSubTab, setActiveSubTab] = useState<EchangeSubTab>((searchParams.get("sub") as EchangeSubTab) ?? "baux");
 
@@ -121,9 +137,9 @@ function AdminPageInner() {
     }
   }, [status]);
 
-  // Charger les baux quand on arrive sur cet onglet
+  // Charger les baux quand on arrive sur cet onglet (ou quittances)
   useEffect(() => {
-    if (status === "authenticated" && activeTab === "echanges" && activeSubTab === "baux" && baux.length === 0) {
+    if (status === "authenticated" && activeTab === "echanges" && (activeSubTab === "baux" || activeSubTab === "quittances") && baux.length === 0) {
       setBauxLoading(true);
       fetch("/api/baux")
         .then((r) => r.json())
@@ -355,8 +371,9 @@ function AdminPageInner() {
           <div className="max-w-6xl mx-auto px-4 bg-gray-50 border-t border-gray-100">
             <nav className="flex gap-1 overflow-x-auto">
               {([
-                { id: "baux",       label: "Baux",        icon: "📝" },
-                { id: "inventaires",label: "États de lieux", icon: "🗂️" },
+                { id: "baux",        label: "Baux",             icon: "📝" },
+                { id: "inventaires", label: "États de lieux",   icon: "🗂️" },
+                { id: "quittances",  label: "Quittances",       icon: "🧾" },
               ] as { id: EchangeSubTab; label: string; icon: string }[]).map((sub) => (
                 <button
                   key={sub.id}
@@ -1023,6 +1040,173 @@ function AdminPageInner() {
                 )}
               </>
             )}
+            {/* ─ Sous-onglet Quittances ─ */}
+            {activeSubTab === "quittances" && (() => {
+              // Baux avec un locataire identifié (prenomNom renseigné)
+              const bauxAvecLocataire = baux.filter((b) => b.prenomNom);
+              const selectedBail = bauxAvecLocataire.find((b) => b.id === parseInt(qBailId));
+              const quittanceUrl = selectedBail && qMois
+                ? `/quittance/${selectedBail.token}?moisDebut=${qMois}${qModeRange && qMoisFin ? `&moisFin=${qMoisFin}` : ""}`
+                : null;
+
+              async function handleSendEmail() {
+                if (!selectedBail || !qMois) return;
+                setQSending(true);
+                setQSent(false);
+                setQError(null);
+                try {
+                  const res = await fetch("/api/quittances/send", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      bailId: selectedBail.id,
+                      moisDebut: qMois,
+                      moisFin: qModeRange && qMoisFin ? qMoisFin : qMois,
+                    }),
+                  });
+                  if (!res.ok) {
+                    const err = await res.json();
+                    setQError(err.error ?? "Erreur lors de l'envoi");
+                  } else {
+                    setQSent(true);
+                  }
+                } catch {
+                  setQError("Erreur réseau");
+                } finally {
+                  setQSending(false);
+                }
+              }
+
+              return (
+                <>
+                  <div className="flex items-center justify-between mb-6">
+                    <div>
+                      <h2 className="text-xl font-semibold text-gray-900">Quittances de loyer</h2>
+                      <p className="text-sm text-gray-400 mt-1">Générez et envoyez une quittance au locataire.</p>
+                    </div>
+                  </div>
+
+                  {bauxLoading ? (
+                    <div className="text-center py-20 text-gray-400">Chargement…</div>
+                  ) : (
+                    <div className="bg-white rounded-xl border border-gray-200 p-6 max-w-lg">
+                      {/* Sélection locataire */}
+                      <div className="mb-5">
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Locataire</label>
+                        <select
+                          value={qBailId}
+                          onChange={(e) => { setQBailId(e.target.value); setQSent(false); setQError(null); }}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                        >
+                          <option value="">— Choisir un locataire —</option>
+                          {bauxAvecLocataire.map((b) => (
+                            <option key={b.id} value={b.id}>
+                              {b.prenomNom} — {b.appartement.titre}
+                              {b.appartement.ville ? ` (${b.appartement.ville})` : ""}
+                            </option>
+                          ))}
+                        </select>
+                        {selectedBail && (selectedBail.mailLocataire == null) && (
+                          <p className="text-xs text-amber-600 mt-1">⚠️ Ce locataire n&apos;a pas d&apos;adresse email enregistrée.</p>
+                        )}
+                      </div>
+
+                      {/* Mode : mois unique ou période */}
+                      <div className="mb-4 flex items-center gap-4">
+                        <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                          <input
+                            type="radio"
+                            checked={!qModeRange}
+                            onChange={() => setQModeRange(false)}
+                            className="accent-gray-900"
+                          />
+                          Mois unique
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                          <input
+                            type="radio"
+                            checked={qModeRange}
+                            onChange={() => setQModeRange(true)}
+                            className="accent-gray-900"
+                          />
+                          Période (plusieurs mois)
+                        </label>
+                      </div>
+
+                      {/* Sélection mois */}
+                      {!qModeRange ? (
+                        <div className="mb-5">
+                          <label className="block text-sm font-medium text-gray-700 mb-1.5">Mois</label>
+                          <input
+                            type="month"
+                            value={qMois}
+                            onChange={(e) => { setQMois(e.target.value); setQSent(false); }}
+                            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                          />
+                        </div>
+                      ) : (
+                        <div className="mb-5 flex gap-4 flex-wrap">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1.5">De</label>
+                            <input
+                              type="month"
+                              value={qMois}
+                              onChange={(e) => { setQMois(e.target.value); setQSent(false); }}
+                              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1.5">À</label>
+                            <input
+                              type="month"
+                              value={qMoisFin}
+                              min={qMois}
+                              onChange={(e) => { setQMoisFin(e.target.value); setQSent(false); }}
+                              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Actions */}
+                      <div className="flex gap-3 flex-wrap">
+                        <a
+                          href={quittanceUrl ?? "#"}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={!quittanceUrl ? (e) => e.preventDefault() : undefined}
+                          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                            quittanceUrl
+                              ? "bg-gray-100 text-gray-800 hover:bg-gray-200 border border-gray-200"
+                              : "bg-gray-50 text-gray-300 cursor-not-allowed border border-gray-100"
+                          }`}
+                        >
+                          🖨️ Télécharger / Imprimer
+                        </a>
+                        <button
+                          disabled={!selectedBail || !qMois || qSending || !selectedBail.mailLocataire}
+                          onClick={handleSendEmail}
+                          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-gray-900 text-white hover:bg-gray-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          {qSending ? "Envoi…" : "📧 Envoyer par email"}
+                        </button>
+                      </div>
+
+                      {qSent && (
+                        <p className="mt-3 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">
+                          ✅ Email envoyé à {selectedBail?.mailLocataire}
+                        </p>
+                      )}
+                      {qError && (
+                        <p className="mt-3 text-sm text-red-700 bg-red-50 rounded-lg px-3 py-2">
+                          ⚠️ {qError}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </>
         )}
 

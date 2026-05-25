@@ -162,20 +162,16 @@ function QuittanceCard({ mois, bail, paiement }: {
         <div className="quittance-signature-block">
           <p className="quittance-lieu-date">Fait à Mérignies, le {dateEmission}</p>
           <p className="quittance-signature-label">Signature du bailleur :</p>
-          {bail.signatureBailleur ? (
-            <div className="quittance-signature-img">
-              <Image
-                src={bail.signatureBailleur}
-                alt="Signature bailleur"
-                width={180}
-                height={60}
-                style={{ objectFit: "contain" }}
-                unoptimized
-              />
-            </div>
-          ) : (
-            <div className="quittance-signature-blank" />
-          )}
+          <div className="quittance-signature-img">
+            <Image
+              src="/images/signature-bailleur.png"
+              alt="Signature bailleur"
+              width={220}
+              height={80}
+              style={{ objectFit: "contain", mixBlendMode: "multiply" }}
+              unoptimized
+            />
+          </div>
           <p className="quittance-nom-bailleur">Gautier Lictevout</p>
         </div>
 

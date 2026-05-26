@@ -57,6 +57,15 @@ type PaiementItem = {
 
 type Tab = "appartements" | "locataires" | "paiements" | "echanges";
 type EchangeSubTab = "baux" | "inventaires" | "quittances";
+
+type EdlItem = {
+  id: number; token: string; type: string; status: string;
+  date: string | null; locataireNom: string | null; locataireEmail: string | null;
+  inventaire: {
+    appartementId: number;
+    appartement: { titre: string; adresse: string | null; ville: string | null; etage: number | null };
+  };
+};
 type PaiementSubTab = "loyer" | "depot";
 
 const STATUS_LABEL: Record<string, { label: string; color: string }> = {
@@ -94,6 +103,17 @@ function AdminPageInner() {
   const [editingDepotRow, setEditingDepotRow] = useState<{
     bailId: number; montantRecu: string; datePaiement: string;
   } | null>(null);
+
+  // EDL list + new EDL form
+  const [edls, setEdls] = useState<EdlItem[]>([]);
+  const [edlsLoading, setEdlsLoading] = useState(false);
+  const [showNewEdl, setShowNewEdl] = useState(false);
+  const [newEdlType, setNewEdlType] = useState<"entree" | "sortie">("entree");
+  const [newEdlInventaireId, setNewEdlInventaireId] = useState("");
+  const [newEdlNom, setNewEdlNom] = useState("");
+  const [newEdlEmail, setNewEdlEmail] = useState("");
+  const [newEdlBauxAppart, setNewEdlBauxAppart] = useState<BailListItem[]>([]);
+  const [newEdlSaving, setNewEdlSaving] = useState(false);
 
   // Quittances form state
   const [qBailId, setQBailId] = useState<string>("");
@@ -169,16 +189,25 @@ function AdminPageInner() {
     }
   }, [status, activeTab]);
 
-  // Charger les inventaires
+  // Charger les inventaires + EDLs
   useEffect(() => {
-    if (status === "authenticated" && activeTab === "echanges" && activeSubTab === "inventaires" && inventaires.length === 0) {
-      setInventairesLoading(true);
-      fetch("/api/inventaires")
-        .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-        .then((data) => { setInventaires(Array.isArray(data) ? data : []); setInventairesLoading(false); })
-        .catch((err) => { console.error("Inventaires fetch error:", err); setInventairesLoading(false); });
+    if (status === "authenticated" && activeTab === "echanges" && activeSubTab === "inventaires") {
+      if (inventaires.length === 0) {
+        setInventairesLoading(true);
+        fetch("/api/inventaires")
+          .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+          .then((data) => { setInventaires(Array.isArray(data) ? data : []); setInventairesLoading(false); })
+          .catch((err) => { console.error("Inventaires fetch error:", err); setInventairesLoading(false); });
+      }
+      if (edls.length === 0) {
+        setEdlsLoading(true);
+        fetch("/api/etats-des-lieux")
+          .then((r) => r.json())
+          .then((data) => { setEdls(Array.isArray(data) ? data : []); setEdlsLoading(false); })
+          .catch(() => setEdlsLoading(false));
+      }
     }
-  }, [status, activeTab, activeSubTab, inventaires.length]);
+  }, [status, activeTab, activeSubTab, inventaires.length, edls.length]);
 
   async function handleArchiveLocataire(id: number, archived: boolean) {
     await fetch(`/api/baux/${id}`, {
@@ -953,93 +982,241 @@ function AdminPageInner() {
               </>
             )}
 
-            {/* ─ Sous-onglet Inventaires ─ */}
-            {activeSubTab === "inventaires" && (
-              <>
-                <div className="flex items-center justify-between mb-6">
-                  <div>
+            {/* ─ Sous-onglet États des lieux ─ */}
+            {activeSubTab === "inventaires" && (() => {
+              const EDL_STATUS: Record<string, { label: string; color: string }> = {
+                draft:          { label: "Brouillon",             color: "bg-gray-100 text-gray-500" },
+                signed_bailleur:{ label: "En attente locataire",  color: "bg-blue-100 text-blue-700" },
+                signed_both:    { label: "Signé ✓",              color: "bg-green-100 text-green-700" },
+              };
+
+              async function handleCreateEdl() {
+                if (!newEdlInventaireId || !newEdlEmail) return;
+                setNewEdlSaving(true);
+                const res = await fetch("/api/etats-des-lieux", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    inventaireId: parseInt(newEdlInventaireId),
+                    type: newEdlType,
+                    locataireNom: newEdlNom || null,
+                    locataireEmail: newEdlEmail,
+                  }),
+                });
+                const edl = await res.json();
+                setNewEdlSaving(false);
+                setShowNewEdl(false);
+                router.push(`/admin/edl/${edl.id}`);
+              }
+
+              return (
+                <>
+                  {/* En-tête */}
+                  <div className="flex items-center justify-between mb-6">
                     <h2 className="text-xl font-semibold text-gray-900">États des lieux</h2>
-                    <p className="text-sm text-gray-400 mt-1">Entrée et sortie par appartement.</p>
+                    <button
+                      onClick={() => {
+                        setShowNewEdl(true);
+                        setNewEdlType("entree");
+                        setNewEdlInventaireId("");
+                        setNewEdlNom("");
+                        setNewEdlEmail("");
+                        setNewEdlBauxAppart([]);
+                      }}
+                      className="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors"
+                    >
+                      + Nouvel état des lieux
+                    </button>
                   </div>
-                </div>
 
-                {inventairesLoading ? (
-                  <div className="text-center py-20 text-gray-400">Chargement…</div>
-                ) : inventaires.length === 0 ? (
-                  <div className="text-center py-20 text-gray-400">
-                    <p className="text-4xl mb-3">🗂️</p>
-                    <p>Aucun inventaire trouvé. Créez d&apos;abord un inventaire pour chaque appartement.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {inventaires.map((inv) => {
-                      const edlEntree = inv.etatsDesLieux.filter((e) => e.type === "entree");
-                      const edlSortie = inv.etatsDesLieux.filter((e) => e.type === "sortie");
-                      const lastEntree = edlEntree[edlEntree.length - 1];
-                      const lastSortie = edlSortie[edlSortie.length - 1];
-                      const EDL_STATUS: Record<string, { label: string; color: string }> = {
-                        draft: { label: "Brouillon", color: "bg-gray-100 text-gray-500" },
-                        signed_bailleur: { label: "En attente locataire", color: "bg-blue-100 text-blue-700" },
-                        signed_both: { label: "Signé ✓", color: "bg-green-100 text-green-700" },
-                      };
-                      return (
-                        <div key={inv.id} className="bg-white rounded-xl border border-gray-200 p-4">
-                          <div className="flex items-start justify-between gap-4 flex-wrap">
-                            <div>
-                              <p className="font-medium text-gray-900">{inv.appartement.titre}</p>
-                              <p className="text-xs text-gray-400 mt-0.5">
-                                {[inv.appartement.adresse, inv.appartement.ville].filter(Boolean).join(", ")}
-                                {inv.appartement.etage !== null ? ` · ${inv.appartement.etage === 0 ? "RDC" : `${inv.appartement.etage}e étage`}` : ""}
-                                {inv.dateEntree ? ` · Inventaire du ${inv.dateEntree}` : ""}
-                              </p>
-                            </div>
-                            <div className="flex gap-2 flex-wrap">
-                              {/* Bouton Entrée */}
-                              {lastEntree ? (
-                                <Link
-                                  href={`/admin/edl/${lastEntree.id}`}
-                                  className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-medium border transition-colors hover:shadow-sm ${
-                                    EDL_STATUS[lastEntree.status]?.color ?? "bg-gray-100 text-gray-600"
-                                  }`}
-                                >
-                                  🔑 Entrée — {EDL_STATUS[lastEntree.status]?.label}
-                                </Link>
-                              ) : (
-                                <Link
-                                  href={`/admin/edl/new?appartementId=${inv.appartementId}&type=entree`}
-                                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-medium border border-dashed border-gray-300 text-gray-500 hover:border-gray-500 hover:text-gray-800 transition-colors"
-                                >
-                                  + Entrée
-                                </Link>
-                              )}
+                  {/* Formulaire inline */}
+                  {showNewEdl && (
+                    <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6 shadow-sm">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="font-semibold text-gray-900">Nouvel état des lieux</h3>
+                        <button onClick={() => setShowNewEdl(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+                      </div>
 
-                              {/* Bouton Sortie */}
-                              {lastSortie ? (
-                                <Link
-                                  href={`/admin/edl/${lastSortie.id}`}
-                                  className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-medium border transition-colors hover:shadow-sm ${
-                                    EDL_STATUS[lastSortie.status]?.color ?? "bg-gray-100 text-gray-600"
-                                  }`}
-                                >
-                                  🚪 Sortie — {EDL_STATUS[lastSortie.status]?.label}
-                                </Link>
-                              ) : (
-                                <Link
-                                  href={`/admin/edl/new?appartementId=${inv.appartementId}&type=sortie`}
-                                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-medium border border-dashed border-gray-300 text-gray-500 hover:border-gray-500 hover:text-gray-800 transition-colors"
-                                >
-                                  + Sortie
-                                </Link>
-                              )}
-                            </div>
+                      <div className="space-y-4">
+                        {/* Type */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1.5">Type</label>
+                          <div className="flex gap-2">
+                            {(["entree", "sortie"] as const).map((t) => (
+                              <button
+                                key={t}
+                                type="button"
+                                onClick={() => setNewEdlType(t)}
+                                className={`flex-1 py-2.5 rounded-lg border-2 text-sm font-medium transition-colors ${
+                                  newEdlType === t ? "border-gray-900 bg-gray-900 text-white" : "border-gray-200 text-gray-600 hover:border-gray-400"
+                                }`}
+                              >
+                                {t === "entree" ? "🔑 Entrée" : "🚪 Sortie"}
+                              </button>
+                            ))}
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </>
-            )}
+
+                        {/* Appartement */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1.5">Appartement</label>
+                          {inventairesLoading ? (
+                            <p className="text-sm text-gray-400">Chargement…</p>
+                          ) : (
+                            <select
+                              value={newEdlInventaireId}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setNewEdlInventaireId(val);
+                                setNewEdlNom("");
+                                setNewEdlEmail("");
+                                setNewEdlBauxAppart([]);
+                                if (val) {
+                                  const inv = inventaires.find((i) => i.id === parseInt(val));
+                                  if (inv) {
+                                    fetch(`/api/baux?appartementId=${inv.appartementId}`)
+                                      .then((r) => r.json())
+                                      .then((data: BailListItem[]) => {
+                                        const actifs = Array.isArray(data) ? data.filter((b) => b.prenomNom) : [];
+                                        setNewEdlBauxAppart(actifs);
+                                        if (actifs.length === 1) {
+                                          setNewEdlNom(actifs[0].prenomNom ?? "");
+                                          setNewEdlEmail(actifs[0].mailLocataire ?? "");
+                                        }
+                                      });
+                                  }
+                                }
+                              }}
+                              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                            >
+                              <option value="">— Choisir un appartement —</option>
+                              {inventaires.map((inv) => (
+                                <option key={inv.id} value={inv.id}>
+                                  {inv.appartement.titre}
+                                  {inv.appartement.adresse ? ` — ${inv.appartement.adresse}` : ""}
+                                  {inv.appartement.etage !== null ? ` (${inv.appartement.etage === 0 ? "RDC" : `${inv.appartement.etage}e`})` : ""}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
+
+                        {/* Locataire */}
+                        {newEdlInventaireId && (
+                          <div className="space-y-3">
+                            {newEdlBauxAppart.length > 0 && (
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1.5">Locataire (bail existant)</label>
+                                <select
+                                  value={newEdlNom ? `${newEdlNom}|${newEdlEmail}` : ""}
+                                  onChange={(e) => {
+                                    if (!e.target.value) { setNewEdlNom(""); setNewEdlEmail(""); return; }
+                                    const [nom, email] = e.target.value.split("|");
+                                    setNewEdlNom(nom);
+                                    setNewEdlEmail(email);
+                                  }}
+                                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                                >
+                                  <option value="">— Sélectionner —</option>
+                                  {newEdlBauxAppart.map((b) => (
+                                    <option key={b.id} value={`${b.prenomNom}|${b.mailLocataire ?? ""}`}>
+                                      {b.prenomNom}{b.mailLocataire ? ` (${b.mailLocataire})` : ""}
+                                    </option>
+                                  ))}
+                                  <option value="nouveau|">Nouveau locataire…</option>
+                                </select>
+                              </div>
+                            )}
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1.5">Nom du locataire</label>
+                                <input
+                                  type="text"
+                                  value={newEdlNom === "nouveau" ? "" : newEdlNom}
+                                  onChange={(e) => setNewEdlNom(e.target.value)}
+                                  placeholder="Prénom Nom"
+                                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1.5">Email *</label>
+                                <input
+                                  type="email"
+                                  value={newEdlEmail === "nouveau" ? "" : newEdlEmail}
+                                  onChange={(e) => setNewEdlEmail(e.target.value)}
+                                  placeholder="locataire@exemple.fr"
+                                  required
+                                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Actions */}
+                        <div className="flex gap-2 pt-1">
+                          <button
+                            onClick={handleCreateEdl}
+                            disabled={!newEdlInventaireId || !newEdlEmail || newEdlSaving}
+                            className="bg-gray-900 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            {newEdlSaving ? "Création…" : "Créer l'état des lieux →"}
+                          </button>
+                          <button onClick={() => setShowNewEdl(false)} className="px-4 py-2 rounded-lg text-sm text-gray-500 hover:text-gray-700 border border-gray-200 hover:border-gray-300">
+                            Annuler
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Liste des EDL */}
+                  {edlsLoading ? (
+                    <div className="text-center py-20 text-gray-400">Chargement…</div>
+                  ) : edls.length === 0 ? (
+                    <div className="text-center py-20 text-gray-400">
+                      <p className="text-4xl mb-3">🗂️</p>
+                      <p>Aucun état des lieux. Créez-en un avec le bouton ci-dessus.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {edls.map((edl) => {
+                        const st = EDL_STATUS[edl.status] ?? { label: edl.status, color: "bg-gray-100 text-gray-600" };
+                        const appart = edl.inventaire.appartement;
+                        return (
+                          <Link
+                            key={edl.id}
+                            href={`/admin/edl/${edl.id}`}
+                            className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-4 hover:border-gray-400 hover:shadow-sm transition-all group"
+                          >
+                            <span className="text-xl flex-shrink-0">{edl.type === "entree" ? "🔑" : "🚪"}</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-medium text-gray-900 truncate">
+                                  {edl.locataireNom ?? <span className="italic text-gray-400 font-normal">Locataire non renseigné</span>}
+                                </span>
+                                <span className="text-xs text-gray-400">·</span>
+                                <span className="text-sm text-gray-500">{edl.type === "entree" ? "Entrée" : "Sortie"}</span>
+                              </div>
+                              <p className="text-sm text-gray-400 mt-0.5 truncate">
+                                {appart.titre}
+                                {appart.adresse ? ` — ${appart.adresse}` : ""}
+                                {appart.etage !== null ? ` (${appart.etage === 0 ? "RDC" : `${appart.etage}e`})` : ""}
+                                {edl.date ? ` · ${edl.date}` : ""}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-3 flex-shrink-0">
+                              <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${st.color}`}>{st.label}</span>
+                              <span className="text-gray-300 group-hover:text-gray-600 transition-colors">→</span>
+                            </div>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
             {/* ─ Sous-onglet Quittances ─ */}
             {activeSubTab === "quittances" && (() => {
               // Baux avec un locataire identifié (prenomNom renseigné)

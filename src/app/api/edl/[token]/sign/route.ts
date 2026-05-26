@@ -42,6 +42,15 @@ export async function POST(req: NextRequest, { params }: Params) {
     include: { inventaire: { include: { appartement: true } } },
   });
 
+  // Si EDL de sortie : mettre à jour l'inventaire de l'appartement avec les lignes de cet EDL
+  // Cela servira de base pour l'état des lieux d'entrée du prochain locataire.
+  if (edl.type === "sortie") {
+    await prisma.inventaire.update({
+      where: { id: edl.inventaireId },
+      data: { lignes: edl.lignes },
+    });
+  }
+
   // Envoyer confirmation au locataire
   if (edl.locataireEmail) {
     const baseUrl = process.env.NEXTAUTH_URL ?? "http://localhost:3000";

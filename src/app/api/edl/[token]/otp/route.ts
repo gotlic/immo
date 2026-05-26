@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { randomInt, createHash, randomUUID } from "crypto";
-import nodemailer from "nodemailer";
+import { sendMail } from "@/lib/mailer";
 
 type Params = { params: Promise<{ token: string }> };
 
@@ -20,21 +20,15 @@ export async function POST(req: NextRequest, { params }: Params) {
     data: { sessionToken, etatDesLieuxId: edl.id, email: edl.locataireEmail, codeHash, expiresAt },
   });
 
-  const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: parseInt(process.env.SMTP_PORT ?? "587"),
-    secure: false,
-    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-  });
-
-  await transporter.sendMail({
-    from: `"Gestion locative" <${process.env.SMTP_USER}>`,
+  await sendMail({
     to: edl.locataireEmail,
     subject: "Code de signature — État des lieux",
     html: `
-      <p>Votre code de signature pour l'état des lieux :</p>
-      <p style="font-size:32px;font-weight:bold;letter-spacing:8px;color:#1a1a1a">${code}</p>
-      <p style="color:#999;font-size:12px;">Ce code expire dans 10 minutes.</p>
+      <div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;color:#1a1a1a;">
+        <p>Votre code de signature pour l'état des lieux :</p>
+        <p style="font-size:36px;font-weight:bold;letter-spacing:10px;color:#1a1a1a;text-align:center;padding:16px 0;">${code}</p>
+        <p style="color:#999;font-size:12px;">Ce code expire dans 10 minutes. Ne le communiquez à personne.</p>
+      </div>
     `,
   });
 

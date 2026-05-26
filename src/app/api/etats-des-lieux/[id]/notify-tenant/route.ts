@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import nodemailer from "nodemailer";
+import { sendMail } from "@/lib/mailer";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -23,23 +23,23 @@ export async function POST(req: NextRequest, { params }: Params) {
   const typeLabel = edl.type === "entree" ? "d'entrée" : "de sortie";
   const appart = edl.inventaire.appartement;
 
-  const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: parseInt(process.env.SMTP_PORT ?? "587"),
-    secure: false,
-    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-  });
-
-  await transporter.sendMail({
-    from: `"Gestion locative" <${process.env.SMTP_USER}>`,
+  await sendMail({
     to: edl.locataireEmail,
     subject: `État des lieux ${typeLabel} — ${appart.titre}`,
     html: `
-      <p>Bonjour${edl.locataireNom ? ` ${edl.locataireNom}` : ""},</p>
-      <p>Votre état des lieux ${typeLabel} pour le logement <strong>${appart.titre}</strong> est disponible.</p>
-      <p>Veuillez le consulter et le signer en cliquant sur le lien ci-dessous :</p>
-      <p><a href="${link}" style="background:#1a1a1a;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;">Consulter et signer l'état des lieux</a></p>
-      <p style="color:#999;font-size:12px;">Ce lien est personnel. La signature sera authentifiée par un code envoyé à cette adresse email.</p>
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;color:#1a1a1a;">
+        <p>Bonjour${edl.locataireNom ? ` ${edl.locataireNom}` : ""},</p>
+        <p>Votre état des lieux ${typeLabel} pour le logement <strong>${appart.titre}</strong> est disponible.</p>
+        <p>Veuillez le consulter et le signer en cliquant sur le lien ci-dessous :</p>
+        <p style="text-align:center;margin:24px 0;">
+          <a href="${link}" style="background:#1a1a1a;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:bold;">
+            Consulter et signer l'état des lieux
+          </a>
+        </p>
+        <p style="color:#999;font-size:12px;">Ce lien est personnel. La signature sera authentifiée par un code envoyé à cette adresse email.</p>
+        <hr style="border:none;border-top:1px solid #eee;margin:24px 0;" />
+        <p style="font-size:11px;color:#aaa;">Gautier Lictevout — 430 rue du Blocus, 59710 Mérignies</p>
+      </div>
     `,
   });
 

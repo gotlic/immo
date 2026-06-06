@@ -60,6 +60,11 @@ export async function GET(req: NextRequest) {
     },
   });
 
+  // Tous les paiements existants (pour déduplication et mise à jour)
+  const existingPaiements = await prisma.paiement.findMany({
+    select: { id: true, bailId: true, mois: true, statut: true },
+  });
+
   if (debug) {
     return NextResponse.json({
       debug: {
@@ -80,17 +85,13 @@ export async function GET(req: NextRequest) {
           montantCharges: b.appartement.montantCharges,
           totalCC: (b.appartement.loyer ?? 0) + (b.appartement.montantCharges ?? 0),
         })),
+        existingPaiements,
         allBaux: await prisma.bail.findMany({
           select: { id: true, prenomNom: true, status: true, archived: true },
         }),
       },
     });
   }
-
-  // Tous les paiements existants (pour déduplication et mise à jour)
-  const existingPaiements = await prisma.paiement.findMany({
-    select: { id: true, bailId: true, mois: true, statut: true },
-  });
 
   const confirmed: GmailMatch[] = [];
   const ambiguous: GmailMatch[] = [];

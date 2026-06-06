@@ -98,17 +98,9 @@ export async function GET(req: NextRequest) {
   const noMatch: GmailMatch[] = [];
 
   for (const email of emails) {
-    const emailMois = `${email.date.getFullYear()}-${String(email.date.getMonth() + 1).padStart(2, "0")}`;
-    // Si le virement arrive avant le 5, il concerne souvent le mois suivant
-    const emailDay = email.date.getDate();
-    const targetMois = (() => {
-      if (emailDay <= 5) {
-        const d = new Date(email.date);
-        d.setMonth(d.getMonth() + 1);
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      }
-      return emailMois;
-    })();
+    // Convertir en heure française (UTC+2 en été) pour déterminer le bon mois
+    const frDate = new Date(email.date.getTime() + 2 * 60 * 60 * 1000);
+    const targetMois = `${frDate.getUTCFullYear()}-${String(frDate.getUTCMonth() + 1).padStart(2, "0")}`;
 
     const base = {
       emailDate: email.date.toISOString(),

@@ -19,9 +19,11 @@ export type GmailMatch = {
   reason?: string;
 };
 
-export async function GET(_req: NextRequest) {
+export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+
+  const debug = req.nextUrl.searchParams.get("debug") === "1";
 
   if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
     return NextResponse.json(
@@ -42,7 +44,7 @@ export async function GET(_req: NextRequest) {
   }
 
   if (emails.length === 0) {
-    return NextResponse.json({ confirmed: [], ambiguous: [], noMatch: [] });
+    return NextResponse.json({ confirmed: [], ambiguous: [], noMatch: [], ...(debug ? { debug: { emails: [], baux: [] } } : {}) });
   }
 
   // Tous les baux actifs
@@ -51,10 +53,39 @@ export async function GET(_req: NextRequest) {
     select: {
       id: true,
       prenomNom: true,
+      status: true,
+      archived: true,
       dateDebut: true,
       appartement: { select: { loyer: true, montantCharges: true } },
     },
   });
+
+  if (debug) {
+    return NextResponse.json({
+      debug: {
+        emails: emails.map(e => ({
+          subject: e.subject,
+          amount: e.amount,
+          sender: e.sender,
+          libelle: e.libelle,
+          compte: e.compte,
+          date: e.date.toISOString(),
+        })),
+        baux: baux.map(b => ({
+          id: b.id,
+          prenomNom: b.prenomNom,
+          status: b.status,
+          archived: b.archived,
+          loyer: b.appartement.loyer,
+          montantCharges: b.appartement.montantCharges,
+          totalCC: (b.appartement.loyer ?? 0) + (b.appartement.montantCharges ?? 0),
+        })),
+        allBaux: await prisma.bail.findMany({
+          select: { id: true, prenomNom: true, status: true, archived: true },
+        }),
+      },
+    });
+  }
 
   // Tous les paiements existants (pour déduplication et mise à jour)
   const existingPaiements = await prisma.paiement.findMany({

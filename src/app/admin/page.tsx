@@ -68,6 +68,20 @@ type EdlItem = {
 };
 type PaiementSubTab = "loyer" | "depot";
 
+type GmailMatch = {
+  emailDate: string;
+  emailAmount: number;
+  emailLibelle: string;
+  emailSender: string;
+  paiementId: number | null;
+  bailId: number | null;
+  mois: string;
+  locataire: string;
+  expectedMontant: number;
+  confidence: "confirmed" | "ambiguous";
+  reason?: string;
+};
+
 const STATUS_LABEL: Record<string, { label: string; color: string }> = {
   pending:       { label: "En attente locataire",  color: "bg-amber-100 text-amber-700" },
   info_submitted:{ label: "En attente garant",     color: "bg-orange-100 text-orange-700" },
@@ -129,6 +143,16 @@ function AdminPageInner() {
   const [qSending, setQSending] = useState(false);
   const [qSent, setQSent] = useState(false);
   const [qError, setQError] = useState<string | null>(null);
+
+  // Vérification Gmail des règlements
+  const [gmailChecking, setGmailChecking] = useState(false);
+  const [gmailResult, setGmailResult] = useState<{
+    confirmed: GmailMatch[]; ambiguous: GmailMatch[]; noMatch: GmailMatch[];
+  } | null>(null);
+  const [gmailError, setGmailError] = useState<string | null>(null);
+  const [gmailSelected, setGmailSelected] = useState<Set<number>>(new Set());
+  const [gmailSaving, setGmailSaving] = useState(false);
+  const [gmailSaved, setGmailSaved] = useState(false);
 
   const [activeTab, setActiveTabState] = useState<Tab>((searchParams.get("tab") as Tab) ?? "appartements");
   const [activeSubTab, setActiveSubTab] = useState<EchangeSubTab>((searchParams.get("sub") as EchangeSubTab) ?? "baux");
@@ -679,7 +703,200 @@ function AdminPageInner() {
                   <span className="text-sm text-gray-400">
                     {locataires.filter((l) => !l.archived && l.status === "signed_both").length} locataire(s) actif(s)
                   </span>
+                  {/* Bouton vérification Gmail */}
+                  <button
+                    onClick={async () => {
+                      setGmailChecking(true);
+                      setGmailError(null);
+                      setGmailResult(null);
+                      setGmailSelected(new Set());
+                      setGmailSaved(false);
+                      try {
+                        const res = await fetch("/api/paiements/check-gmail");
+                        const data = await res.json();
+                        if (!res.ok) { setGmailError(data.error ?? "Erreur"); return; }
+                        setGmailResult(data);
+                        // Pré-sélectionner tous les "confirmed"
+                        const ids = new Set<number>(
+                          data.confirmed.map((m: GmailMatch) => m.paiementId).filter(Boolean) as number[]
+                        );
+                        setGmailSelected(ids);
+                      } catch { setGmailError("Erreur réseau"); }
+                      finally { setGmailChecking(false); }
+                    }}
+                    disabled={gmailChecking}
+                    className="ml-auto flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white px-4 py-1.5 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    {gmailChecking ? (
+                      <><span className="animate-spin">⟳</span> Vérification…</>
+                    ) : (
+                      <>📬 Vérifier les règlements</>
+                    )}
+                  </button>
                 </div>
+
+                {/* Panneau résultats Gmail */}
+                {(gmailResult || gmailError) && (
+                  <div className="bg-white rounded-xl border border-gray-200 p-5">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-semibold text-gray-900">Résultats Sumeria — Compte 4 rue Flamen</h3>
+                      <button
+                        onClick={() => { setGmailResult(null); setGmailError(null); setGmailSaved(false); }}
+                        className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+                      >×</button>
+                    </div>
+
+                    {gmailError && (
+                      <p className="text-sm text-red-600 bg-red-50 rounded-lg px-4 py-3">{gmailError}</p>
+                    )}
+
+                    {gmailResult && (
+                      <>
+                        {/* Confirmés */}
+                        {gmailResult.confirmed.length > 0 && (
+                          <div className="mb-4">
+                            <p className="text-sm font-medium text-green-700 mb-2">
+                              ✅ Règlements identifiés avec certitude ({gmailResult.confirmed.length})
+                            </p>
+                            <div className="space-y-2">
+                              {gmailResult.confirmed.map((m, i) => (
+                                <label key={i} className="flex items-start gap-3 p-3 rounded-lg border border-green-200 bg-green-50 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={m.paiementId !== null && gmailSelected.has(m.paiementId)}
+                                    onChange={(e) => {
+                                      if (m.paiementId === null) return;
+                                      setGmailSelected((prev) => {
+                                        const s = new Set(prev);
+                                        if (e.target.checked) s.add(m.paiementId!);
+                                        else s.delete(m.paiementId!);
+                                        return s;
+                                      });
+                                    }}
+                                    className="mt-0.5 accent-green-600"
+                                  />
+                                  <div className="flex-1 text-sm">
+                                    <div className="font-medium text-gray-900">{m.locataire} — {m.emailAmount.toLocaleString("fr-FR")} €</div>
+                                    <div className="text-gray-500">
+                                      Mois : {m.mois} · Reçu le {new Date(m.emailDate).toLocaleDateString("fr-FR")}
+                                      {m.emailLibelle && <> · <span className="italic">{m.emailLibelle}</span></>}
+                                    </div>
+                                  </div>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Ambigus */}
+                        {gmailResult.ambiguous.length > 0 && (
+                          <div className="mb-4">
+                            <p className="text-sm font-medium text-amber-700 mb-2">
+                              ⚠️ À vérifier ({gmailResult.ambiguous.length})
+                            </p>
+                            <div className="space-y-2">
+                              {gmailResult.ambiguous.map((m, i) => (
+                                <label key={i} className="flex items-start gap-3 p-3 rounded-lg border border-amber-200 bg-amber-50 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={m.paiementId !== null && gmailSelected.has(m.paiementId)}
+                                    onChange={(e) => {
+                                      if (m.paiementId === null) return;
+                                      setGmailSelected((prev) => {
+                                        const s = new Set(prev);
+                                        if (e.target.checked) s.add(m.paiementId!);
+                                        else s.delete(m.paiementId!);
+                                        return s;
+                                      });
+                                    }}
+                                    className="mt-0.5 accent-amber-600"
+                                  />
+                                  <div className="flex-1 text-sm">
+                                    <div className="font-medium text-gray-900">{m.locataire} — {m.emailAmount.toLocaleString("fr-FR")} €</div>
+                                    <div className="text-gray-500">
+                                      Mois attendu : {m.mois} · Reçu le {new Date(m.emailDate).toLocaleDateString("fr-FR")}
+                                      {m.emailLibelle && <> · <span className="italic">{m.emailLibelle}</span></>}
+                                    </div>
+                                    {m.reason && <div className="text-amber-600 text-xs mt-0.5">⚠ {m.reason}</div>}
+                                  </div>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Sans correspondance */}
+                        {gmailResult.noMatch.length > 0 && (
+                          <div className="mb-4">
+                            <p className="text-sm font-medium text-gray-500 mb-2">
+                              ℹ️ Virements sans correspondance ({gmailResult.noMatch.length})
+                            </p>
+                            <div className="space-y-1">
+                              {gmailResult.noMatch.map((m, i) => (
+                                <div key={i} className="text-sm text-gray-500 px-3 py-2 bg-gray-50 rounded-lg">
+                                  {m.emailSender} — {m.emailAmount.toLocaleString("fr-FR")} € · {new Date(m.emailDate).toLocaleDateString("fr-FR")}
+                                  {m.reason && <span className="text-gray-400"> ({m.reason})</span>}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {gmailResult.confirmed.length === 0 && gmailResult.ambiguous.length === 0 && (
+                          <p className="text-sm text-gray-500 py-2">
+                            Aucun virement loyer trouvé sur le Compte 4 rue Flamen dans les 60 derniers jours.
+                          </p>
+                        )}
+
+                        {/* Actions */}
+                        {gmailSelected.size > 0 && (
+                          <div className="flex items-center gap-3 pt-3 border-t border-gray-100 mt-2">
+                            {gmailSaved ? (
+                              <span className="text-sm text-green-600 font-medium">✅ {gmailSelected.size} paiement(s) marqué(s) comme payé</span>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={async () => {
+                                    setGmailSaving(true);
+                                    const today = new Date().toISOString().slice(0, 10);
+                                    const res = await fetch("/api/paiements/check-gmail", {
+                                      method: "POST",
+                                      headers: { "Content-Type": "application/json" },
+                                      body: JSON.stringify({ paiementIds: Array.from(gmailSelected), datePaiement: today }),
+                                    });
+                                    setGmailSaving(false);
+                                    if (res.ok) {
+                                      setGmailSaved(true);
+                                      // Mettre à jour la liste locale des paiements
+                                      const todayStr = today;
+                                      setPaiements((prev) =>
+                                        prev.map((p) =>
+                                          gmailSelected.has(p.id)
+                                            ? { ...p, statut: "paye", datePaiement: todayStr }
+                                            : p
+                                        )
+                                      );
+                                    }
+                                  }}
+                                  disabled={gmailSaving}
+                                  className="bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                                >
+                                  {gmailSaving ? "Enregistrement…" : `✓ Marquer ${gmailSelected.size} paiement(s) comme payé`}
+                                </button>
+                                <button
+                                  onClick={() => setGmailSelected(new Set())}
+                                  className="text-sm text-gray-500 hover:text-gray-700"
+                                >
+                                  Tout décocher
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
 
                 {/* Tableau loyer */}
                 <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">

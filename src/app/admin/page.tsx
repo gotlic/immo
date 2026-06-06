@@ -155,6 +155,8 @@ function AdminPageInner() {
   const [gmailMatchMap, setGmailMatchMap] = useState<Map<string, GmailMatch>>(new Map());
   const [gmailSaving, setGmailSaving] = useState(false);
   const [gmailSaved, setGmailSaved] = useState(false);
+  // clés "bailId-mois" → date du mail pour animation dans le tableau
+  const [gmailJustPaid, setGmailJustPaid] = useState<Map<string, string>>(new Map());
 
   const [activeTab, setActiveTabState] = useState<Tab>((searchParams.get("tab") as Tab) ?? "appartements");
   const [activeSubTab, setActiveSubTab] = useState<EchangeSubTab>((searchParams.get("sub") as EchangeSubTab) ?? "baux");
@@ -871,15 +873,16 @@ function AdminPageInner() {
                                 <button
                                   onClick={async () => {
                                     setGmailSaving(true);
-                                    const today = new Date().toISOString().slice(0, 10);
                                     const matches = Array.from(gmailSelected).map((key) => {
                                       const m = gmailMatchMap.get(key)!;
+                                      // Utiliser la date du mail, pas aujourd'hui
+                                      const emailDate = new Date(m.emailDate).toISOString().slice(0, 10);
                                       return {
                                         bailId: m.bailId,
                                         mois: m.mois,
                                         existingPaiementId: m.existingPaiementId,
                                         montant: m.expectedMontant,
-                                        datePaiement: today,
+                                        datePaiement: emailDate,
                                       };
                                     });
                                     const res = await fetch("/api/paiements/check-gmail", {
@@ -890,13 +893,16 @@ function AdminPageInner() {
                                     setGmailSaving(false);
                                     if (res.ok) {
                                       setGmailSaved(true);
+                                      // Construire la map bailId-mois → dateEmail pour l'animation
+                                      const justPaid = new Map<string, string>();
+                                      matches.forEach((m) => justPaid.set(`${m.bailId}-${m.mois}`, m.datePaiement));
+                                      setGmailJustPaid(justPaid);
                                       // Mettre à jour la liste locale des paiements existants
                                       setPaiements((prev) =>
                                         prev.map((p) => {
                                           const key = `${p.bailId}-${p.mois}`;
-                                          return gmailSelected.has(key)
-                                            ? { ...p, statut: "paye", datePaiement: today }
-                                            : p;
+                                          const date = justPaid.get(key);
+                                          return date ? { ...p, statut: "paye", datePaiement: date } : p;
                                         })
                                       );
                                     }
@@ -1004,8 +1010,29 @@ function AdminPageInner() {
                                 </div>
                               </td>
                             </tr>
-                          ) : (
-                            <tr key={`${l.id}-${mois}`} className="hover:bg-gray-50">
+                          ) : (() => {
+                            const gmailKey = `${l.id}-${mois}`;
+                            const justPaidDate = gmailJustPaid.get(gmailKey);
+                            const isGmailMatch = !!gmailResult && (
+                              gmailSelected.has(gmailKey) ||
+                              [...(gmailResult.confirmed), ...(gmailResult.ambiguous)].some(
+                                (m) => `${m.bailId}-${m.mois}` === gmailKey
+                              )
+                            );
+                            // Statut et date effectifs (après validation)
+                            const effectifStatut = justPaidDate ? "paye" : statut;
+                            const effectifDate = justPaidDate ?? p?.datePaiement ?? null;
+                            return (
+                            <tr
+                              key={gmailKey}
+                              className={`transition-colors duration-500 ${
+                                justPaidDate
+                                  ? "bg-green-50 animate-pulse-once"
+                                  : isGmailMatch
+                                  ? "bg-blue-50 ring-1 ring-inset ring-blue-200"
+                                  : "hover:bg-gray-50"
+                              }`}
+                            >
                               <td className="px-3 py-2.5 text-xs text-gray-500 whitespace-nowrap">{moisLabel}</td>
                               <td className="px-3 py-2.5 text-sm font-medium text-gray-900 whitespace-nowrap">{l.prenomNom ?? "—"}</td>
                               <td className="px-3 py-2.5 text-sm text-gray-600 whitespace-nowrap">{l.appartement.titre}</td>
@@ -1020,12 +1047,13 @@ function AdminPageInner() {
                               </td>
                               <td className="px-3 py-2.5 text-right text-sm font-medium text-gray-900">{total > 0 ? `${total.toFixed(2)} €` : "—"}</td>
                               <td className="px-3 py-2.5 text-center">
-                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statut === "paye" ? "bg-green-100 text-green-700" : statut === "retard" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}>
-                                  {statut === "paye" ? "✓ Payé" : statut === "retard" ? "⚠ Retard" : "En attente"}
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium transition-all duration-500 ${effectifStatut === "paye" ? "bg-green-100 text-green-700" : effectifStatut === "retard" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}>
+                                  {justPaidDate && <span className="animate-bounce">✓</span>}
+                                  {effectifStatut === "paye" ? "✓ Payé" : effectifStatut === "retard" ? "⚠ Retard" : "En attente"}
                                 </span>
                               </td>
                               <td className="px-3 py-2.5 text-center text-xs text-gray-500">
-                                {p?.datePaiement ? new Date(p.datePaiement).toLocaleDateString("fr-FR") : "—"}
+                                {effectifDate ? new Date(effectifDate).toLocaleDateString("fr-FR") : "—"}
                               </td>
                               <td className="px-3 py-2.5 text-center">
                                 <button
@@ -1034,7 +1062,8 @@ function AdminPageInner() {
                                 >✎</button>
                               </td>
                             </tr>
-                          )
+                            );
+                          })()
                         )}
                       {locataires.filter((l) => !l.archived && l.status === "signed_both").length === 0 && (
                         <tr><td colSpan={10} className="px-4 py-8 text-center text-gray-400">Aucun locataire actif</td></tr>

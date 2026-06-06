@@ -47,7 +47,7 @@ export async function GET(_req: NextRequest) {
 
   // Tous les baux actifs
   const baux = await prisma.bail.findMany({
-    where: { status: "signed_both", archived: false },
+    where: { status: "signed_both", NOT: { archived: true } },
     select: {
       id: true,
       prenomNom: true,

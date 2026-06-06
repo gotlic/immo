@@ -5,32 +5,24 @@ import { prisma } from "@/lib/prisma";
 import { fetchSumeriaPayments } from "@/lib/gmail-imap";
 
 export type GmailMatch = {
-  // Info du mail Sumeria
-  emailDate: string;       // ISO date
+  emailDate: string;
   emailAmount: number;
   emailLibelle: string;
   emailSender: string;
-  // Info du paiement matché
-  paiementId: number | null;
-  bailId: number | null;
+  // clé pour valider : bailId + mois (pas de paiementId car la ligne peut ne pas exister)
+  bailId: number;
   mois: string;
   locataire: string;
   expectedMontant: number;
-  // Résultat
+  existingPaiementId: number | null;  // null = pas encore de ligne en DB
   confidence: "confirmed" | "ambiguous";
   reason?: string;
 };
 
-/**
- * GET /api/paiements/check-gmail
- * Vérifie les règlements reçus via Sumeria (Compte 4 rue Flamen)
- * et les confronte aux paiements "attendu" en base.
- */
 export async function GET(_req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
-  // Vérifier que les credentials Gmail sont configurés
   if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
     return NextResponse.json(
       { error: "GMAIL_USER et GMAIL_APP_PASSWORD ne sont pas configurés dans .env" },
@@ -38,7 +30,7 @@ export async function GET(_req: NextRequest) {
     );
   }
 
-  // Chercher les mails Sumeria des 60 derniers jours
+  // Récupérer les mails Sumeria des 60 derniers jours
   const since = new Date();
   since.setDate(since.getDate() - 60);
 
@@ -54,18 +46,20 @@ export async function GET(_req: NextRequest) {
     return NextResponse.json({ confirmed: [], ambiguous: [], noMatch: [] });
   }
 
-  // Récupérer tous les paiements "attendu" avec leurs baux
-  const paiements = await prisma.paiement.findMany({
-    where: { statut: "attendu" },
-    include: {
-      bail: {
-        select: {
-          id: true,
-          prenomNom: true,
-          appartement: { select: { titre: true, loyer: true, montantCharges: true } },
-        },
-      },
+  // Récupérer tous les baux actifs avec leurs montants
+  const baux = await prisma.bail.findMany({
+    where: { status: "signed_both", archived: false },
+    select: {
+      id: true,
+      prenomNom: true,
+      dateDebut: true,
+      appartement: { select: { loyer: true, montantCharges: true } },
     },
+  });
+
+  // Récupérer les paiements déjà existants (pour éviter les doublons et pour avoir l'id)
+  const existingPaiements = await prisma.paiement.findMany({
+    select: { id: true, bailId: true, mois: true, statut: true },
   });
 
   const confirmed: GmailMatch[] = [];
@@ -73,77 +67,89 @@ export async function GET(_req: NextRequest) {
   const noMatch: GmailMatch[] = [];
 
   for (const email of emails) {
-    // Extraire l'année-mois du mail (ex: "2026-06")
     const emailMois = `${email.date.getFullYear()}-${String(email.date.getMonth() + 1).padStart(2, "0")}`;
-
-    // Chercher des paiements dont le montant correspond exactement
-    const exactMatches = paiements.filter((p) => p.montant === email.amount);
-    // Chercher aussi dans le mois du mail ou le mois précédent (loyer souvent payé en avance)
-    const prevMois = (() => {
+    // Le loyer peut arriver le mois précédent (payé en avance) ou le mois courant
+    const nextMois = (() => {
       const d = new Date(email.date);
-      d.setMonth(d.getMonth() - 1);
+      d.setMonth(d.getMonth() + 1);
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     })();
 
-    const base: Omit<GmailMatch, "paiementId" | "bailId" | "mois" | "locataire" | "expectedMontant" | "confidence" | "reason"> = {
+    const base = {
       emailDate: email.date.toISOString(),
       emailAmount: email.amount,
       emailLibelle: email.libelle,
       emailSender: email.sender,
     };
 
-    if (exactMatches.length === 0) {
-      // Aucun paiement en attente avec ce montant — peut-être déjà marqué payé ?
+    // Trouver les baux dont le total (loyer + charges) correspond exactement au montant reçu
+    const matchingBaux = baux.filter((b) => {
+      const total = (b.appartement.loyer ?? 0) + (b.appartement.montantCharges ?? 0);
+      return Math.abs(total - email.amount) < 0.01;
+    });
+
+    if (matchingBaux.length === 0) {
       noMatch.push({
         ...base,
-        paiementId: null,
-        bailId: null,
+        bailId: 0,
         mois: emailMois,
         locataire: email.sender,
         expectedMontant: email.amount,
+        existingPaiementId: null,
         confidence: "ambiguous",
-        reason: "Aucun paiement en attente avec ce montant",
+        reason: "Aucun bail actif avec ce montant de loyer CC",
       });
       continue;
     }
 
-    // Parmi les exactMatches, favoriser ceux dont le mois correspond
-    const moisMatches = exactMatches.filter((p) => p.mois === emailMois || p.mois === prevMois);
+    // Pour chaque bail matchant, déterminer le mois cible et vérifier si déjà payé
+    // Le mois cible : emailMois si le loyer est payé en cours de mois,
+    // ou nextMois si payé en avance (avant le 5 du mois)
+    const emailDay = email.date.getDate();
+    const targetMois = emailDay <= 5 ? nextMois : emailMois;
 
-    if (moisMatches.length === 1) {
-      // Match parfait : montant + mois unique
+    // Filtrer les baux pour lesquels ce mois n'est pas déjà payé
+    const unpaidBaux = matchingBaux.filter((b) => {
+      const existing = existingPaiements.find(
+        (p) => p.bailId === b.id && p.mois === targetMois
+      );
+      return !existing || existing.statut !== "paye";
+    });
+
+    if (unpaidBaux.length === 0) {
+      // Tout est déjà payé — on skip silencieusement (déjà traité)
+      continue;
+    }
+
+    if (unpaidBaux.length === 1) {
+      const b = unpaidBaux[0];
+      const existing = existingPaiements.find(
+        (p) => p.bailId === b.id && p.mois === targetMois
+      );
       confirmed.push({
         ...base,
-        paiementId: moisMatches[0].id,
-        bailId: moisMatches[0].bailId,
-        mois: moisMatches[0].mois,
-        locataire: moisMatches[0].bail.prenomNom ?? `Bail #${moisMatches[0].bailId}`,
-        expectedMontant: moisMatches[0].montant,
+        bailId: b.id,
+        mois: targetMois,
+        locataire: b.prenomNom ?? `Bail #${b.id}`,
+        expectedMontant: (b.appartement.loyer ?? 0) + (b.appartement.montantCharges ?? 0),
+        existingPaiementId: existing?.id ?? null,
         confidence: "confirmed",
       });
-    } else if (exactMatches.length === 1) {
-      // Montant unique mais mois ne correspond pas exactement
-      ambiguous.push({
-        ...base,
-        paiementId: exactMatches[0].id,
-        bailId: exactMatches[0].bailId,
-        mois: exactMatches[0].mois,
-        locataire: exactMatches[0].bail.prenomNom ?? `Bail #${exactMatches[0].bailId}`,
-        expectedMontant: exactMatches[0].montant,
-        confidence: "ambiguous",
-        reason: `Le mois du mail (${emailMois}) ne correspond pas au mois attendu (${exactMatches[0].mois})`,
-      });
     } else {
-      // Plusieurs paiements avec le même montant — ambigu
+      // Plusieurs baux avec le même montant — ambigu
+      const b = unpaidBaux[0];
+      const existing = existingPaiements.find(
+        (p) => p.bailId === b.id && p.mois === targetMois
+      );
       ambiguous.push({
         ...base,
-        paiementId: moisMatches[0]?.id ?? exactMatches[0].id,
-        bailId: moisMatches[0]?.bailId ?? exactMatches[0].bailId,
-        mois: moisMatches[0]?.mois ?? exactMatches[0].mois,
-        locataire: (moisMatches[0] ?? exactMatches[0]).bail.prenomNom ?? "?",
-        expectedMontant: (moisMatches[0] ?? exactMatches[0]).montant,
+        bailId: b.id,
+        mois: targetMois,
+        locataire: b.prenomNom ?? `Bail #${b.id}`,
+        expectedMontant: (b.appartement.loyer ?? 0) + (b.appartement.montantCharges ?? 0),
+        existingPaiementId: existing?.id ?? null,
         confidence: "ambiguous",
-        reason: `${exactMatches.length} paiements avec ce montant (${email.amount} €)`,
+        reason: `${unpaidBaux.length} baux ont le même montant de loyer (${email.amount} €)`,
       });
     }
   }
@@ -153,29 +159,50 @@ export async function GET(_req: NextRequest) {
 
 /**
  * POST /api/paiements/check-gmail
- * Body: { paiementIds: number[], datePaiement: string }
- * Marque les paiements donnés comme "paye".
+ * Body: { matches: { bailId, mois, existingPaiementId, montant, datePaiement }[] }
+ * Crée ou met à jour les paiements en "paye".
  */
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
-  const { paiementIds, datePaiement } = await req.json() as {
-    paiementIds: number[];
-    datePaiement: string;
+  const { matches } = await req.json() as {
+    matches: {
+      bailId: number;
+      mois: string;
+      existingPaiementId: number | null;
+      montant: number;
+      datePaiement: string;
+    }[];
   };
 
-  if (!Array.isArray(paiementIds) || paiementIds.length === 0) {
-    return NextResponse.json({ error: "paiementIds requis" }, { status: 400 });
+  if (!Array.isArray(matches) || matches.length === 0) {
+    return NextResponse.json({ error: "matches requis" }, { status: 400 });
   }
 
-  await prisma.paiement.updateMany({
-    where: { id: { in: paiementIds } },
-    data: {
-      statut: "paye",
-      datePaiement: datePaiement ?? new Date().toISOString().slice(0, 10),
-    },
-  });
+  let updated = 0;
+  let created = 0;
 
-  return NextResponse.json({ ok: true, updated: paiementIds.length });
+  for (const m of matches) {
+    if (m.existingPaiementId) {
+      await prisma.paiement.update({
+        where: { id: m.existingPaiementId },
+        data: { statut: "paye", datePaiement: m.datePaiement },
+      });
+      updated++;
+    } else {
+      await prisma.paiement.create({
+        data: {
+          bailId: m.bailId,
+          mois: m.mois,
+          montant: m.montant,
+          statut: "paye",
+          datePaiement: m.datePaiement,
+        },
+      });
+      created++;
+    }
+  }
+
+  return NextResponse.json({ ok: true, updated, created });
 }

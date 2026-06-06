@@ -73,11 +73,11 @@ type GmailMatch = {
   emailAmount: number;
   emailLibelle: string;
   emailSender: string;
-  paiementId: number | null;
-  bailId: number | null;
+  bailId: number;
   mois: string;
   locataire: string;
   expectedMontant: number;
+  existingPaiementId: number | null;
   confidence: "confirmed" | "ambiguous";
   reason?: string;
 };
@@ -150,7 +150,8 @@ function AdminPageInner() {
     confirmed: GmailMatch[]; ambiguous: GmailMatch[]; noMatch: GmailMatch[];
   } | null>(null);
   const [gmailError, setGmailError] = useState<string | null>(null);
-  const [gmailSelected, setGmailSelected] = useState<Set<number>>(new Set());
+  const [gmailSelected, setGmailSelected] = useState<Set<string>>(new Set()); // clé: "bailId-mois"
+  const [gmailMatchMap, setGmailMatchMap] = useState<Map<string, GmailMatch>>(new Map());
   const [gmailSaving, setGmailSaving] = useState(false);
   const [gmailSaved, setGmailSaved] = useState(false);
 
@@ -717,10 +718,16 @@ function AdminPageInner() {
                         if (!res.ok) { setGmailError(data.error ?? "Erreur"); return; }
                         setGmailResult(data);
                         // Pré-sélectionner tous les "confirmed"
-                        const ids = new Set<number>(
-                          data.confirmed.map((m: GmailMatch) => m.paiementId).filter(Boolean) as number[]
+                        const keys = new Set<string>(
+                          data.confirmed.map((m: GmailMatch) => `${m.bailId}-${m.mois}`)
                         );
-                        setGmailSelected(ids);
+                        setGmailSelected(keys);
+                        // Construire la map pour retrouver les matches lors de la validation
+                        const map = new Map<string, GmailMatch>();
+                        [...data.confirmed, ...data.ambiguous].forEach((m: GmailMatch) => {
+                          map.set(`${m.bailId}-${m.mois}`, m);
+                        });
+                        setGmailMatchMap(map);
                       } catch { setGmailError("Erreur réseau"); }
                       finally { setGmailChecking(false); }
                     }}
@@ -763,13 +770,13 @@ function AdminPageInner() {
                                 <label key={i} className="flex items-start gap-3 p-3 rounded-lg border border-green-200 bg-green-50 cursor-pointer">
                                   <input
                                     type="checkbox"
-                                    checked={m.paiementId !== null && gmailSelected.has(m.paiementId)}
+                                    checked={gmailSelected.has(`${m.bailId}-${m.mois}`)}
                                     onChange={(e) => {
-                                      if (m.paiementId === null) return;
+                                      const key = `${m.bailId}-${m.mois}`;
                                       setGmailSelected((prev) => {
                                         const s = new Set(prev);
-                                        if (e.target.checked) s.add(m.paiementId!);
-                                        else s.delete(m.paiementId!);
+                                        if (e.target.checked) s.add(key);
+                                        else s.delete(key);
                                         return s;
                                       });
                                     }}
@@ -799,13 +806,13 @@ function AdminPageInner() {
                                 <label key={i} className="flex items-start gap-3 p-3 rounded-lg border border-amber-200 bg-amber-50 cursor-pointer">
                                   <input
                                     type="checkbox"
-                                    checked={m.paiementId !== null && gmailSelected.has(m.paiementId)}
+                                    checked={gmailSelected.has(`${m.bailId}-${m.mois}`)}
                                     onChange={(e) => {
-                                      if (m.paiementId === null) return;
+                                      const key = `${m.bailId}-${m.mois}`;
                                       setGmailSelected((prev) => {
                                         const s = new Set(prev);
-                                        if (e.target.checked) s.add(m.paiementId!);
-                                        else s.delete(m.paiementId!);
+                                        if (e.target.checked) s.add(key);
+                                        else s.delete(key);
                                         return s;
                                       });
                                     }}
@@ -859,22 +866,32 @@ function AdminPageInner() {
                                   onClick={async () => {
                                     setGmailSaving(true);
                                     const today = new Date().toISOString().slice(0, 10);
+                                    const matches = Array.from(gmailSelected).map((key) => {
+                                      const m = gmailMatchMap.get(key)!;
+                                      return {
+                                        bailId: m.bailId,
+                                        mois: m.mois,
+                                        existingPaiementId: m.existingPaiementId,
+                                        montant: m.expectedMontant,
+                                        datePaiement: today,
+                                      };
+                                    });
                                     const res = await fetch("/api/paiements/check-gmail", {
                                       method: "POST",
                                       headers: { "Content-Type": "application/json" },
-                                      body: JSON.stringify({ paiementIds: Array.from(gmailSelected), datePaiement: today }),
+                                      body: JSON.stringify({ matches }),
                                     });
                                     setGmailSaving(false);
                                     if (res.ok) {
                                       setGmailSaved(true);
-                                      // Mettre à jour la liste locale des paiements
-                                      const todayStr = today;
+                                      // Mettre à jour la liste locale des paiements existants
                                       setPaiements((prev) =>
-                                        prev.map((p) =>
-                                          gmailSelected.has(p.id)
-                                            ? { ...p, statut: "paye", datePaiement: todayStr }
-                                            : p
-                                        )
+                                        prev.map((p) => {
+                                          const key = `${p.bailId}-${p.mois}`;
+                                          return gmailSelected.has(key)
+                                            ? { ...p, statut: "paye", datePaiement: today }
+                                            : p;
+                                        })
                                       );
                                     }
                                   }}

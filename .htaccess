@@ -5,5 +5,3 @@ PassengerNodejs "/opt/alt/alt-nodejs20/root/usr/bin/node"
 PassengerAppType node
 PassengerStartupFile server.js
 # DO NOT REMOVE. CLOUDLINUX PASSENGER CONFIGURATION END
-PassengerMinInstances 1
-PassengerMaxPreloaderIdleTime 0

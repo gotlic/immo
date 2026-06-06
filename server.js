@@ -8,6 +8,26 @@ const next = require("next");
 const fs = require("fs");
 const path = require("path");
 
+// Log de démarrage pour diagnostic Passenger
+const logPath = path.join(__dirname, "passenger_startup.log");
+const logStream = fs.createWriteStream(logPath, { flags: "a" });
+const origStdout = process.stdout.write.bind(process.stdout);
+const origStderr = process.stderr.write.bind(process.stderr);
+const log = (msg) => {
+  const line = `[${new Date().toISOString()}] ${msg}\n`;
+  logStream.write(line);
+  origStdout(line);
+};
+process.on("uncaughtException", (err) => {
+  log(`UNCAUGHT: ${err.stack || err}`);
+  process.exit(1);
+});
+process.on("unhandledRejection", (err) => {
+  log(`UNHANDLED: ${err instanceof Error ? err.stack : String(err)}`);
+  process.exit(1);
+});
+log(`Starting — PORT=${process.env.PORT} NODE_ENV=${process.env.NODE_ENV} cwd=${process.cwd()}`);
+
 const MIME = {
   ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
   ".webp": "image/webp", ".gif": "image/gif", ".avif": "image/avif",

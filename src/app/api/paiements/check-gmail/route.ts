@@ -202,7 +202,7 @@ export async function GET(req: NextRequest) {
     noMatch.push({
       ...base,
       bailId: 0,
-      mois: emailMois,
+      mois: targetMois,
       locataire: email.sender,
       expectedMontant: email.amount,
       existingPaiementId: null,

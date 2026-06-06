@@ -37,9 +37,18 @@ export async function fetchSumeriaPayments(since: Date): Promise<SumeriaPayment[
   const payments: SumeriaPayment[] = [];
 
   try {
-    const lock = await client.getMailboxLock("INBOX");
+    // "[Gmail]/All Mail" contient tous les mails y compris ceux avec labels personnalisés
+    // Sur certains comptes Google c'est "[Gmail]/Tous les messages"
+    const allMailFolders = ["[Gmail]/All Mail", "[Gmail]/Tous les messages"];
+    let folder = "INBOX";
+    const list = await client.list();
+    for (const f of list) {
+      if (allMailFolders.includes(f.path)) { folder = f.path; break; }
+    }
+
+    const lock = await client.getMailboxLock(folder);
     try {
-      // Recherche : mails de Sumeria depuis la date donnée
+      // Recherche : mails de Sumeria (expéditeur) depuis la date donnée
       const uids = await client.search({
         from: "sumeria.eu",
         since,
@@ -50,7 +59,7 @@ export async function fetchSumeriaPayments(since: Date): Promise<SumeriaPayment[
       for await (const msg of client.fetch(uids as number[], {
         uid: true,
         envelope: true,
-        bodyParts: ["TEXT"],
+        source: true,        // message brut complet pour extraire le texte
       }, { uid: true })) {
         const subject = msg.envelope?.subject ?? "";
 
@@ -58,23 +67,25 @@ export async function fetchSumeriaPayments(since: Date): Promise<SumeriaPayment[
         if (!subject.startsWith("+")) continue;
 
         // Parser le montant depuis le sujet : "+ 778,00 € de NOM"
-        const subjectMatch = subject.match(/^\+\s*([\d\s]+,\d{2})\s*€/);
+        const subjectMatch = subject.match(/^\+\s*([\d\s ]+,\d{2})\s*€/u);
         if (!subjectMatch) continue;
-        const amount = parseFloat(subjectMatch[1].replace(/\s/g, "").replace(",", "."));
+        const amount = parseFloat(
+          subjectMatch[1].replace(/[\s ]/g, "").replace(",", ".")
+        );
+        if (isNaN(amount) || amount <= 0) continue;
 
-        // Récupérer le body texte
-        const bodyPart = msg.bodyParts?.get("text");
-        const bodyText = bodyPart ? Buffer.from(bodyPart).toString("utf-8") : "";
+        // Récupérer le texte brut du message
+        const rawSource = msg.source ? Buffer.from(msg.source).toString("utf-8") : "";
 
-        // Filtrer : seulement le "Compte 4 rue Flamen"
-        if (!bodyText.includes("Flamen")) continue;
+        // Filtrer : seulement les virements sur "Compte 4 rue Flamen"
+        if (!rawSource.includes("Flamen")) continue;
 
         // Parser le libellé : « LOYER MENSUEL ANTOINE MONIER »
-        const libelleMatch = bodyText.match(/pour\s+[«"]\s*([^»"]+?)\s*[»"]/u);
+        const libelleMatch = rawSource.match(/pour\s+[«"«]\s*([^»"»]+?)\s*[»"»]/u);
         const libelle = libelleMatch?.[1]?.trim() ?? "";
 
-        // Parser le compte : "crédité sur votre compte « Compte 4 rue Flamen »"
-        const compteMatch = bodyText.match(/compte\s+[«"]\s*([^»"]+?)\s*[»"]/u);
+        // Parser le compte crédité
+        const compteMatch = rawSource.match(/compte\s+[«"«]\s*([^»"»]+?)\s*[»"»]/u);
         const compte = compteMatch?.[1]?.trim() ?? "";
 
         // Parser le nom de l'expéditeur depuis le sujet : "+ X € de NOM"

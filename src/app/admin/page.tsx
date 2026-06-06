@@ -78,6 +78,7 @@ type GmailMatch = {
   locataire: string;
   expectedMontant: number;
   existingPaiementId: number | null;
+  matchType: "loyer" | "caution";
   confidence: "confirmed" | "ambiguous";
   reason?: string;
 };
@@ -783,9 +784,14 @@ function AdminPageInner() {
                                     className="mt-0.5 accent-green-600"
                                   />
                                   <div className="flex-1 text-sm">
-                                    <div className="font-medium text-gray-900">{m.locataire} — {m.emailAmount.toLocaleString("fr-FR")} €</div>
+                                    <div className="font-medium text-gray-900">
+                                      {m.locataire} — {m.emailAmount.toLocaleString("fr-FR")} €
+                                      <span className={`ml-2 text-xs px-1.5 py-0.5 rounded font-medium ${m.matchType === "caution" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}>
+                                        {m.matchType === "caution" ? "Caution" : "Loyer"}
+                                      </span>
+                                    </div>
                                     <div className="text-gray-500">
-                                      Mois : {m.mois} · Reçu le {new Date(m.emailDate).toLocaleDateString("fr-FR")}
+                                      {m.mois === "caution" ? "Dépôt de garantie" : `Mois : ${m.mois}`} · Reçu le {new Date(m.emailDate).toLocaleDateString("fr-FR")}
                                       {m.emailLibelle && <> · <span className="italic">{m.emailLibelle}</span></>}
                                     </div>
                                   </div>

@@ -25,7 +25,7 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ token:
           surface: true, nbPieces: true,
           loyer: true, montantCharges: true, detailCharges: true,
           dpePdf: true, typeBail: true, typeChauffage: true, courExtVegetalisee: true,
-          loyerPrecedentLocataire: true, coutEnergMensuel: true,
+          loyerPrecedentLocataire: true, coutEnergMensuel: true, pdl: true,
           inventaire: {
             select: {
               dateEntree: true, lignes: true,
